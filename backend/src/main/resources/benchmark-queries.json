@@ -1,0 +1,41 @@
+{
+  "mysql": {
+    "schema": [
+      "DROP TABLE IF EXISTS benchmark_orders;",
+      "DROP TABLE IF EXISTS benchmark_users;",
+      "CREATE TABLE benchmark_users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, email VARCHAR(100) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);",
+      "CREATE TABLE benchmark_orders (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, amount DECIMAL(10,2) NOT NULL, order_date DATE NOT NULL, FOREIGN KEY (user_id) REFERENCES benchmark_users(id) ON DELETE CASCADE);"
+    ],
+    "insertUser": "INSERT INTO benchmark_users (name, email) VALUES (?, ?);",
+    "insertOrder": "INSERT INTO benchmark_orders (user_id, amount, order_date) VALUES (?, ?, ?);",
+    "read": "SELECT * FROM benchmark_users WHERE id = ?;",
+    "join": "SELECT u.name, o.amount, o.order_date FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id WHERE o.amount > ? LIMIT 100;",
+    "aggregate": "SELECT u.name, SUM(o.amount) as total_spent, COUNT(o.id) as order_count FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id GROUP BY u.id, u.name HAVING total_spent > ?;"
+  },
+  "postgresql": {
+    "schema": [
+      "DROP TABLE IF EXISTS benchmark_orders CASCADE;",
+      "DROP TABLE IF EXISTS benchmark_users CASCADE;",
+      "CREATE TABLE benchmark_users (id SERIAL PRIMARY KEY, name VARCHAR(100) NOT NULL, email VARCHAR(100) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);",
+      "CREATE TABLE benchmark_orders (id SERIAL PRIMARY KEY, user_id INT REFERENCES benchmark_users(id) ON DELETE CASCADE, amount DECIMAL(10,2) NOT NULL, order_date DATE NOT NULL);"
+    ],
+    "insertUser": "INSERT INTO benchmark_users (name, email) VALUES (?, ?);",
+    "insertOrder": "INSERT INTO benchmark_orders (user_id, amount, order_date) VALUES (?, ?, ?);",
+    "read": "SELECT * FROM benchmark_users WHERE id = ?;",
+    "join": "SELECT u.name, o.amount, o.order_date FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id WHERE o.amount > ? LIMIT 100;",
+    "aggregate": "SELECT u.name, SUM(o.amount) as total_spent, COUNT(o.id) as order_count FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id GROUP BY u.id, u.name HAVING SUM(o.amount) > ?;"
+  },
+  "mariadb": {
+    "schema": [
+      "DROP TABLE IF EXISTS benchmark_orders;",
+      "DROP TABLE IF EXISTS benchmark_users;",
+      "CREATE TABLE benchmark_users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) NOT NULL, email VARCHAR(100) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);",
+      "CREATE TABLE benchmark_orders (id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, amount DECIMAL(10,2) NOT NULL, order_date DATE NOT NULL, FOREIGN KEY (user_id) REFERENCES benchmark_users(id) ON DELETE CASCADE);"
+    ],
+    "insertUser": "INSERT INTO benchmark_users (name, email) VALUES (?, ?);",
+    "insertOrder": "INSERT INTO benchmark_orders (user_id, amount, order_date) VALUES (?, ?, ?);",
+    "read": "SELECT * FROM benchmark_users WHERE id = ?;",
+    "join": "SELECT u.name, o.amount, o.order_date FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id WHERE o.amount > ? LIMIT 100;",
+    "aggregate": "SELECT u.name, SUM(o.amount) as total_spent, COUNT(o.id) as order_count FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id GROUP BY u.id, u.name HAVING total_spent > ?;"
+  }
+}
