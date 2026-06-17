@@ -15,4 +15,9 @@ public class MariadbHandler implements DatabaseHandler {
     public String getDriverClassName() {
         return "org.mariadb.jdbc.Driver";
     }
+
+    @Override
+    public boolean supportsTransactions() {
+        return true;
+    }
 }

@@ -153,77 +153,78 @@ public class BenchmarkService {
                 schemaTimeMs = (System.nanoTime() - start) / 1_000_000.0;
 
                 // Disable auto-commit for optimal batch insertion performance and accurate rate metrics
-                conn.setAutoCommit(false);
+                if(handler.supportsTransactions())
+                    conn.setAutoCommit(false);
 
                 // 3. Measure Insertion Time and Rate
-                List<Integer> userIds = new ArrayList<>();
+//                List<Integer> userIds = new ArrayList<>();
                 start = System.nanoTime();
                 try {
                     // Insert Users
-                    try (PreparedStatement psUser = conn.prepareStatement(queries.getInsertUser(), Statement.RETURN_GENERATED_KEYS)) {
+                    try (PreparedStatement psUser = conn.prepareStatement(queries.getInsertUser())) {
                         for (int i = 0; i < insertCount; i++) {
-                            psUser.setString(1, "BenchUser_" + i);
-                            psUser.setString(2, "user_" + i + "@benchmark.com");
+                            psUser.setInt(1,i+1);
+                            psUser.setString(2, "BenchUser_" + i+1);
+                            psUser.setString(3, "user_" + (i+1) + "@benchmark.com");
                             psUser.addBatch();
                         }
                         psUser.executeBatch();
-
-                        try (ResultSet rs = psUser.getGeneratedKeys()) {
-                            while (rs.next()) {
-                                userIds.add(rs.getInt(1));
-                            }
-                        }
+//                        try (ResultSet rs = psUser.getGeneratedKeys()) {
+//                            while (rs.next()) {
+//                                userIds.add(rs.getInt(1));
+//                            }
+//                        }
                     }
 
                     // Insert Orders mapping to those users
                     try (PreparedStatement psOrder = conn.prepareStatement(queries.getInsertOrder())) {
-                        for (int i = 0; i < userIds.size(); i++) {
-                            psOrder.setInt(1, userIds.get(i));
-                            psOrder.setBigDecimal(2, BigDecimal.valueOf(10.0 + i));
-                            psOrder.setDate(3, new Date(System.currentTimeMillis()));
+                        for (int i = 0; i < insertCount; i++) {
+                            psOrder.setInt(1, i+1);
+                            psOrder.setInt(2, i+1);
+                            psOrder.setBigDecimal(3, BigDecimal.valueOf(10.0 + i));
+                            psOrder.setDate(4, new Date(System.currentTimeMillis()));
                             psOrder.addBatch();
                         }
                         psOrder.executeBatch();
                     }
                     insertTimeMs = (System.nanoTime() - start) / 1_000_000.0;
-                    conn.commit();
+                    if(handler.supportsTransactions())
+                        conn.commit();
                 } catch (Exception e) {
-                    conn.rollback();
+                    if(handler.supportsTransactions())
+                        conn.rollback();
                     throw e;
                 } finally {
-                    conn.setAutoCommit(true);
+                    if(handler.supportsTransactions())
+                        conn.setAutoCommit(true);
                 }
 
-                int totalRowsInserted = userIds.size() + userIds.size(); // Users + Orders
+                int totalRowsInserted = insertCount*2 ; // Users + Orders
                 insertRate = insertTimeMs > 0 ? (totalRowsInserted / (insertTimeMs / 1000.0)) : 0;
 
                 // 4. Measure Read Metrics (Simple Read)
-                int readRuns = Math.min(userIds.size(), 50);
-                if (readRuns > 0) {
-                    start = System.nanoTime();
-                    try (PreparedStatement psRead = conn.prepareStatement(queries.getRead())) {
-                        for (int i = 0; i < readRuns; i++) {
-                            int randomId = userIds.get(i);
-                            psRead.setInt(1, randomId);
-                            try (ResultSet rs = psRead.executeQuery()) {
-//                                if (rs.next()) {
-//                                    // Read columns to verify query execution
-//                                    rs.getString("name");
-//                                }
-                            }
+                int readRuns = 50 ;
+                start = System.nanoTime();
+                for(int i=0;i<readRuns;i++){
+                    try(
+                            Statement st = conn.createStatement();
+                            ResultSet rs = st.executeQuery(queries.getRead())
+                    ){
+                        while(rs.next()){
+                            // consume rows
                         }
                     }
-                    readTimeMs = ((System.nanoTime() - start) / 1_000_000.0) / readRuns; // Average time per query
                 }
+                readTimeMs = ((System.nanoTime() - start) / 1_000_000.0) / readRuns;
 
                 // 5. Measure Join Metrics
                 start = System.nanoTime();
                 try (PreparedStatement psJoin = conn.prepareStatement(queries.getJoin())) {
                     psJoin.setBigDecimal(1, java.math.BigDecimal.valueOf(50.0));
                     try (ResultSet rs = psJoin.executeQuery()) {
-//                        while (rs.next()) {
-//                            rs.getString(1);
-//                        }
+                        while (rs.next()) {
+                            rs.getString(1);
+                        }
                     }
                 }
                 joinTimeMs = (System.nanoTime() - start) / 1_000_000.0;
@@ -233,9 +234,9 @@ public class BenchmarkService {
                 try (PreparedStatement psAggregate = conn.prepareStatement(queries.getAggregate())) {
                     psAggregate.setBigDecimal(1, java.math.BigDecimal.valueOf(10.0));
                     try (ResultSet rs = psAggregate.executeQuery()) {
-//                        while (rs.next()) {
-//                            rs.getString(1);
-//                        }
+                        while (rs.next()) {
+                            rs.getString(1);
+                        }
                     }
                 }
                 aggregateTimeMs = (System.nanoTime() - start) / 1_000_000.0;

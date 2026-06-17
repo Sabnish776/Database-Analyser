@@ -4,20 +4,19 @@ import com.dbanalyser.handler.DatabaseHandler;
 import org.springframework.stereotype.Component;
 
 @Component
-public class PostgresqlHandler implements DatabaseHandler {
-
+public class ClickHouseHandler implements DatabaseHandler {
     @Override
     public String getDbType() {
-        return "postgresql";
+        return "clickhouse";
     }
 
     @Override
     public String getDriverClassName() {
-        return "org.postgresql.Driver";
+        return "com.clickhouse.jdbc.ClickHouseDriver";
     }
 
     @Override
     public boolean supportsTransactions() {
-        return true;
+        return false;
     }
 }

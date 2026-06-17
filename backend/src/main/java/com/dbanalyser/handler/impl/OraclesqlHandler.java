@@ -4,16 +4,15 @@ import com.dbanalyser.handler.DatabaseHandler;
 import org.springframework.stereotype.Component;
 
 @Component
-public class PostgresqlHandler implements DatabaseHandler {
-
+public class OraclesqlHandler implements DatabaseHandler {
     @Override
     public String getDbType() {
-        return "postgresql";
+        return "oraclesql";
     }
 
     @Override
     public String getDriverClassName() {
-        return "org.postgresql.Driver";
+        return "oracle.jdbc.OracleDriver";
     }
 
     @Override

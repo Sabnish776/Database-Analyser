@@ -59,6 +59,33 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- ClickHouse driver -->
+        <dependency>
+            <groupId>com.clickhouse</groupId>
+            <artifactId>clickhouse-jdbc</artifactId>
+            <version>0.9.8</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5</artifactId>
+            <version>5.3.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.3.1</version>
+        </dependency>
+
+        <!-- Oracle SQL Driver-->
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc11</artifactId>
+            <version>23.26.1.0.0</version>
+            <scope>compile</scope>
+        </dependency>
+
         <!-- Jackson for JSON Parsing (comes with web starter, but good to ensure presence) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

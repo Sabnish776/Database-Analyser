@@ -374,6 +374,8 @@ export default function App() {
                   <option value="mysql">MySQL</option>
                   <option value="postgresql">PostgreSQL</option>
                   <option value="mariadb">MariaDB</option>
+                  <option value="clickhouse">Clickhouse</option>
+                  <option value="oraclesql">OracleSql</option>
                 </select>
               </div>
 
@@ -439,6 +441,7 @@ export default function App() {
                 <option value="500">500 rows</option>
                 <option value="1000">1,000 rows (Default)</option>
                 <option value="5000">5,000 rows</option>
+                <option value="10000">10,000 rows</option>
               </select>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                 Rows inserted for parent-child relationship.

@@ -15,4 +15,9 @@ public class MysqlHandler implements DatabaseHandler {
     public String getDriverClassName() {
         return "com.mysql.cj.jdbc.Driver";
     }
+
+    @Override
+    public boolean supportsTransactions() {
+        return true;
+    }
 }
