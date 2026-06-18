@@ -213,6 +213,18 @@ body {
   border: 1px solid rgba(13, 148, 136, 0.3);
 }
 
+.badge-clickhouse {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.badge-oraclesql, .badge-oracle {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
 /* Inputs and Forms */
 .form-group {
   display: flex;
@@ -379,7 +391,7 @@ body {
 
 @media (min-width: 1200px) {
   .metrics-summary-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -465,6 +477,14 @@ body {
   font-weight: 400;
 }
 
+/* Results Section */
+.results-section {
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
 /* Results Detailed Table */
 .results-table-container {
   overflow-x: auto;
@@ -476,7 +496,6 @@ body {
 .results-table {
   width: 100%;
   border-collapse: collapse;
-  text-align: left;
   font-size: 0.875rem;
 }
 
@@ -489,12 +508,19 @@ body {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  text-align: center;
 }
 
 .results-table td {
   padding: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   color: var(--text-primary);
+  text-align: center;
+}
+
+.results-table th:first-child,
+.results-table td:first-child {
+  text-align: left;
 }
 
 .results-table tr:last-child td {

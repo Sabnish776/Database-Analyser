@@ -28,8 +28,11 @@ interface ConnectionDetail {
 interface MetricResult {
   connectionTimeMs: number;
   schemaCreationTimeMs: number;
-  insertionTimeMs: number;
-  insertionRate: number;
+  totalSingleInsertTime: number;
+  avgSingleInsertLatency: number;
+  singleInsertRate: number;
+  batchInsertionTimeMs: number;
+  batchInsertionRate: number;
   readTimeMs: number;
   joinTimeMs: number;
   aggregateTimeMs: number;
@@ -249,7 +252,8 @@ export default function App() {
   };
 
   const connLeader = getLeader('connectionTimeMs', true);
-  const writeLeader = getLeader('insertionRate', false);
+  const batchWriteLeader = getLeader('batchInsertionRate', false);
+  const singleWriteLeader = getLeader('avgSingleInsertLatency', true);
   const readLeader = getLeader('readTimeMs', true);
 
   return (
@@ -268,7 +272,7 @@ export default function App() {
       <header className="app-header">
         <div className="header-title-section">
           <h1>Database Analyzer & Benchmarker</h1>
-          <p>Dynamically benchmark and analyze query throughput and connection latencies across MySQL, PostgreSQL, and MariaDB</p>
+          <p>Dynamically benchmark and analyze query throughput and connection latencies across MySQL, PostgreSQL, MariaDB , OracleSql and Clickhouse</p>
         </div>
       </header>
 
@@ -444,13 +448,13 @@ export default function App() {
                 <option value="10000">10,000 rows</option>
               </select>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Rows inserted for parent-child relationship.
+                Rows inserted for each table in schema.
               </span>
             </div>
           </div>
         </div>
 
-        {/* Right Section: Configuration Panels and Outputs */}
+        {/* Right Section: Configuration Panels */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           
           {/* Query Configuration Preview */}
@@ -498,165 +502,195 @@ export default function App() {
               )}
             </button>
           </div>
+        </div>
+      </div>
 
-          {/* Results Section */}
-          {runningBenchmark && (
-            <div className="glass-panel loader-container">
-              <div className="spinner" style={{ width: '40px', height: '40px' }} />
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Measuring Database Engines...</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Connecting dynamically to JDBC endpoints, running schema changes, batches, and executing query categories.
-              </p>
-            </div>
-          )}
+      {/* Results Section (Full width, placed below the setup section) */}
+      <div className="results-section">
+        {/* Results Loading */}
+        {runningBenchmark && (
+          <div className="glass-panel loader-container">
+            <div className="spinner" style={{ width: '40px', height: '40px' }} />
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Measuring Database Engines...</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Connecting dynamically to JDBC endpoints, running schema changes, batches, and executing query categories.
+            </p>
+          </div>
+        )}
 
-          {!runningBenchmark && benchmarkResults.length > 0 && (
-            <>
-              {/* Leader Metrics Cards */}
-              <div className="metrics-summary-grid">
-                
-                {/* Connection Leader */}
-                <div className="metric-summary-card glass-panel">
-                  <div className="metric-summary-header">
-                    <span>Fastest Connect</span>
-                    <Award size={16} style={{ color: 'var(--primary)' }} />
-                  </div>
-                  {connLeader ? (
-                    <>
-                      <div className="metric-summary-value">{connLeader.metrics?.connectionTimeMs}ms</div>
-                      <div className="metric-summary-db">
-                        <span className={`badge badge-${connLeader.dbType}`}>{connLeader.dbType}</span>
-                        <span>{connLeader.connectionName}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>N/A</div>
-                  )}
+        {/* Results Details */}
+        {!runningBenchmark && benchmarkResults.length > 0 && (
+          <>
+            {/* Leader Metrics Cards */}
+            <div className="metrics-summary-grid">
+              
+              {/* Connection Leader */}
+              <div className="metric-summary-card glass-panel">
+                <div className="metric-summary-header">
+                  <span>Fastest Connect</span>
+                  <Award size={16} style={{ color: 'var(--primary)' }} />
                 </div>
-
-                {/* Insertion Throughput Leader */}
-                <div className="metric-summary-card glass-panel">
-                  <div className="metric-summary-header">
-                    <span>Highest Write Rate</span>
-                    <Award size={16} style={{ color: 'var(--success)' }} />
-                  </div>
-                  {writeLeader ? (
-                    <>
-                      <div className="metric-summary-value">{writeLeader.metrics?.insertionRate.toLocaleString()} rows/s</div>
-                      <div className="metric-summary-db">
-                        <span className={`badge badge-${writeLeader.dbType}`}>{writeLeader.dbType}</span>
-                        <span>{writeLeader.connectionName}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>N/A</div>
-                  )}
-                </div>
-
-                {/* Simple Read Leader */}
-                <div className="metric-summary-card glass-panel">
-                  <div className="metric-summary-header">
-                    <span>Fastest Avg Read</span>
-                    <Award size={16} style={{ color: 'var(--warning)' }} />
-                  </div>
-                  {readLeader ? (
-                    <>
-                      <div className="metric-summary-value">{readLeader.metrics?.readTimeMs}ms</div>
-                      <div className="metric-summary-db">
-                        <span className={`badge badge-${readLeader.dbType}`}>{readLeader.dbType}</span>
-                        <span>{readLeader.connectionName}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>N/A</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Graphical Charts View */}
-              <DashboardCharts results={benchmarkResults} />
-
-              {/* Raw Comparison Table */}
-              <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                <div className="section-title">
-                  <Terminal size={18} style={{ color: 'var(--primary)' }} />
-                  Detailed Metrics Comparison
-                </div>
-
-                <div className="results-table-container">
-                  <table className="results-table">
-                    <thead>
-                      <tr>
-                        <th>Database</th>
-                        <th>Status</th>
-                        <th>Connect (ms)</th>
-                        <th>Schema (ms)</th>
-                        <th>Inserts (ms)</th>
-                        <th>Insert Rate (rows/s)</th>
-                        <th>Avg Read (ms)</th>
-                        <th>Join Query (ms)</th>
-                        <th>Agg Query (ms)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {benchmarkResults.map((r, i) => (
-                        <tr key={i}>
-                          <td>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontWeight: 700 }}>{r.connectionName}</span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{r.dbType}</span>
-                            </div>
-                          </td>
-                          <td>
-                            {r.success ? (
-                              <span className="text-success" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                <Check size={14} /> OK
-                              </span>
-                            ) : (
-                              <span className="text-error" title={r.error}>
-                                Error
-                              </span>
-                            )}
-                          </td>
-                          <td>{r.success && r.metrics ? `${r.metrics.connectionTimeMs} ms` : '-'}</td>
-                          <td>{r.success && r.metrics ? `${r.metrics.schemaCreationTimeMs} ms` : '-'}</td>
-                          <td>{r.success && r.metrics ? `${r.metrics.insertionTimeMs} ms` : '-'}</td>
-                          <td className="text-success" style={{ fontWeight: 700 }}>
-                            {r.success && r.metrics ? `${r.metrics.insertionRate.toLocaleString()} rows/s` : '-'}
-                          </td>
-                          <td>{r.success && r.metrics ? `${r.metrics.readTimeMs} ms` : '-'}</td>
-                          <td>{r.success && r.metrics ? `${r.metrics.joinTimeMs} ms` : '-'}</td>
-                          <td>{r.success && r.metrics ? `${r.metrics.aggregateTimeMs} ms` : '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {benchmarkResults.some(r => !r.success) && (
-                  <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <h4 style={{ fontSize: '0.85rem', color: 'var(--error)', fontWeight: 700 }}>Failure Details:</h4>
-                    {benchmarkResults.filter(r => !r.success).map((r, idx) => (
-                      <div key={idx} style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', fontSize: '0.8rem', color: '#fca5a5', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                        <strong>{r.connectionName}:</strong> {r.error}
-                      </div>
-                    ))}
-                  </div>
+                {connLeader ? (
+                  <>
+                    <div className="metric-summary-value">{connLeader.metrics?.connectionTimeMs}ms</div>
+                    <div className="metric-summary-db">
+                      <span className={`badge badge-${connLeader.dbType}`}>{connLeader.dbType}</span>
+                      <span>{connLeader.connectionName}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>N/A</div>
                 )}
               </div>
-            </>
-          )}
 
-          {!runningBenchmark && benchmarkResults.length === 0 && (
-            <div className="glass-panel empty-state">
-              <Database className="empty-state-icon" />
-              <div className="empty-state-title">No comparison data available</div>
-              <p style={{ fontSize: '0.85rem', maxWidth: '400px' }}>
-                Add your database connection details on the left, check your query configurations, and click 'Run Comparison' to start benchmarking.
-              </p>
+              {/* Batch Insertion Throughput Leader */}
+              <div className="metric-summary-card glass-panel">
+                <div className="metric-summary-header">
+                  <span>Highest Batch Write</span>
+                  <Award size={16} style={{ color: 'var(--success)' }} />
+                </div>
+                {batchWriteLeader ? (
+                  <>
+                    <div className="metric-summary-value">{batchWriteLeader.metrics?.batchInsertionRate.toLocaleString()} rows/s</div>
+                    <div className="metric-summary-db">
+                      <span className={`badge badge-${batchWriteLeader.dbType}`}>{batchWriteLeader.dbType}</span>
+                      <span>{batchWriteLeader.connectionName}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>N/A</div>
+                )}
+              </div>
+
+              {/* Single Insertion Latency Leader */}
+              <div className="metric-summary-card glass-panel">
+                <div className="metric-summary-header">
+                  <span>Fastest Single Insert</span>
+                  <Award size={16} style={{ color: 'var(--accent)' }} />
+                </div>
+                {singleWriteLeader ? (
+                  <>
+                    <div className="metric-summary-value">{singleWriteLeader.metrics?.avgSingleInsertLatency} ms/row</div>
+                    <div className="metric-summary-db">
+                      <span className={`badge badge-${singleWriteLeader.dbType}`}>{singleWriteLeader.dbType}</span>
+                      <span>{singleWriteLeader.connectionName}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>N/A</div>
+                )}
+              </div>
+
+              {/* Simple Read Leader */}
+              <div className="metric-summary-card glass-panel">
+                <div className="metric-summary-header">
+                  <span>Fastest Avg Read</span>
+                  <Award size={16} style={{ color: 'var(--warning)' }} />
+                </div>
+                {readLeader ? (
+                  <>
+                    <div className="metric-summary-value">{readLeader.metrics?.readTimeMs}ms</div>
+                    <div className="metric-summary-db">
+                      <span className={`badge badge-${readLeader.dbType}`}>{readLeader.dbType}</span>
+                      <span>{readLeader.connectionName}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>N/A</div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+
+            {/* Graphical Charts View */}
+            <DashboardCharts results={benchmarkResults} />
+
+            {/* Raw Comparison Table */}
+            <div className="glass-panel" style={{ padding: '1.25rem' }}>
+              <div className="section-title">
+                <Terminal size={18} style={{ color: 'var(--primary)' }} />
+                Detailed Metrics Comparison
+              </div>
+
+              <div className="results-table-container">
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Database</th>
+                      <th>Status</th>
+                      <th>Connect (ms)</th>
+                      <th>Schema (ms)</th>
+                      <th>Single Inserts (ms)</th>
+                      <th>Avg Single (ms/row)</th>
+                      <th>Single Rate (rows/s)</th>
+                      <th>Batch Inserts (ms)</th>
+                      <th>Batch Rate (rows/s)</th>
+                      <th>Avg Read (ms)</th>
+                      <th>Join Query (ms)</th>
+                      <th>Agg Query (ms)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {benchmarkResults.map((r, i) => (
+                      <tr key={i}>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: 700 }}>{r.connectionName}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{r.dbType}</span>
+                          </div>
+                        </td>
+                        <td>
+                          {r.success ? (
+                            <span className="text-success" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
+                              <Check size={14} /> OK
+                            </span>
+                          ) : (
+                            <span className="text-error" title={r.error}>
+                              Error
+                            </span>
+                          )}
+                        </td>
+                        <td>{r.success && r.metrics ? `${r.metrics.connectionTimeMs} ms` : '-'}</td>
+                        <td>{r.success && r.metrics ? `${r.metrics.schemaCreationTimeMs} ms` : '-'}</td>
+                        <td>{r.success && r.metrics ? `${r.metrics.totalSingleInsertTime} ms` : '-'}</td>
+                        <td>{r.success && r.metrics ? `${r.metrics.avgSingleInsertLatency} ms` : '-'}</td>
+                        <td className="text-success">{r.success && r.metrics ? `${r.metrics.singleInsertRate.toLocaleString()} rows/s` : '-'}</td>
+                        <td>{r.success && r.metrics ? `${r.metrics.batchInsertionTimeMs} ms` : '-'}</td>
+                        <td className="text-success" style={{ fontWeight: 700 }}>
+                          {r.success && r.metrics ? `${r.metrics.batchInsertionRate.toLocaleString()} rows/s` : '-'}
+                        </td>
+                        <td>{r.success && r.metrics ? `${r.metrics.readTimeMs} ms` : '-'}</td>
+                        <td>{r.success && r.metrics ? `${r.metrics.joinTimeMs} ms` : '-'}</td>
+                        <td>{r.success && r.metrics ? `${r.metrics.aggregateTimeMs} ms` : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {benchmarkResults.some(r => !r.success) && (
+                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', color: 'var(--error)', fontWeight: 700 }}>Failure Details:</h4>
+                  {benchmarkResults.filter(r => !r.success).map((r, idx) => (
+                    <div key={idx} style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', fontSize: '0.8rem', color: '#fca5a5', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                      <strong>{r.connectionName}:</strong> {r.error}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Empty State */}
+        {!runningBenchmark && benchmarkResults.length === 0 && (
+          <div className="glass-panel empty-state">
+            <Database className="empty-state-icon" />
+            <div className="empty-state-title">No comparison data available</div>
+            <p style={{ fontSize: '0.85rem', maxWidth: '400px' }}>
+              Add your database connection details on the left, check your query configurations, and click 'Run Comparison' to start benchmarking.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

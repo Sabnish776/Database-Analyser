@@ -13,8 +13,11 @@ import {
 interface MetricResult {
   connectionTimeMs: number;
   schemaCreationTimeMs: number;
-  insertionTimeMs: number;
-  insertionRate: number;
+  totalSingleInsertTime: number;
+  avgSingleInsertLatency: number;
+  singleInsertRate: number;
+  batchInsertionTimeMs: number;
+  batchInsertionRate: number;
   readTimeMs: number;
   joinTimeMs: number;
   aggregateTimeMs: number;
@@ -45,7 +48,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ results }) => 
     dbType: r.dbType,
     'Connection (ms)': r.metrics?.connectionTimeMs || 0,
     'Schema Creation (ms)': r.metrics?.schemaCreationTimeMs || 0,
-    'Insertion Rate (rows/s)': r.metrics?.insertionRate || 0,
+    'Batch Insertion Rate (rows/s)': r.metrics?.batchInsertionRate || 0,
+    'Single Insertion Rate (rows/s)': r.metrics?.singleInsertRate || 0,
     'Simple Read (ms)': r.metrics?.readTimeMs || 0,
     'Join Query (ms)': r.metrics?.joinTimeMs || 0,
     'Aggregate Query (ms)': r.metrics?.aggregateTimeMs || 0,
@@ -111,10 +115,10 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ results }) => 
         </div>
       </div>
 
-      {/* Chart 2: Write Throughput (Insertion Rate) */}
+      {/* Chart 2: Batch Write Throughput */}
       <div className="chart-card glass-panel">
         <div className="chart-card-title">
-          <span>Write Throughput</span>
+          <span>Batch Write Throughput</span>
           <span className="chart-card-desc">Higher is better (rows/s)</span>
         </div>
         <div style={{ width: '100%', height: 300 }}>
@@ -124,7 +128,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ results }) => 
               margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
             >
               <defs>
-                <linearGradient id="colorInsert" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="colorBatchInsert" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
                 </linearGradient>
@@ -134,14 +138,43 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ results }) => 
               <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} />
               <Tooltip content={<CustomTooltip unit="rows/s" />} />
               <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
-              <Bar name="Insertion Rate" dataKey="Insertion Rate (rows/s)" fill="url(#colorInsert)" radius={[4, 4, 0, 0]} />
+              <Bar name="Batch Insertion Rate" dataKey="Batch Insertion Rate (rows/s)" fill="url(#colorBatchInsert)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Chart 3: Query Latencies (Reads, Joins, Aggregates) */}
-      <div className="chart-card glass-panel" style={{ gridColumn: 'span 1' }}>
+      {/* Chart 3: Single Write Throughput */}
+      <div className="chart-card glass-panel">
+        <div className="chart-card-title">
+          <span>Single Write Throughput</span>
+          <span className="chart-card-desc">Higher is better (rows/s)</span>
+        </div>
+        <div style={{ width: '100%', height: 300 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data}
+              margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="colorSingleInsert" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.1}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="name" stroke="#9ca3af" fontSize={11} tickLine={false} />
+              <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} />
+              <Tooltip content={<CustomTooltip unit="rows/s" />} />
+              <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+              <Bar name="Single Insertion Rate" dataKey="Single Insertion Rate (rows/s)" fill="url(#colorSingleInsert)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Chart 4: Query Latencies (Reads, Joins, Aggregates) */}
+      <div className="chart-card glass-panel">
         <div className="chart-card-title">
           <span>Read & Query Latency</span>
           <span className="chart-card-desc">Lower is better (ms)</span>

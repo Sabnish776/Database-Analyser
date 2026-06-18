@@ -130,8 +130,11 @@ public class BenchmarkService {
 
             double connTimeMs;
             double schemaTimeMs = 0;
-            double insertTimeMs = 0;
-            double insertRate = 0;
+            double totalSingleInsertTime = 0 ;
+            double avgSingleInsertLatency = 0 ; // ms per row
+            double singleInsertRate = 0 ; // rows per sec
+            double batchInsertTimeMs = 0;
+            double batchInsertRate = 0;
             double readTimeMs = 0;
             double joinTimeMs = 0;
             double aggregateTimeMs = 0;
@@ -143,21 +146,63 @@ public class BenchmarkService {
 
                 // 2. Measure Schema Creation Time
                 start = System.nanoTime();
-                try (Statement stmt = conn.createStatement()) {
-                    for (String ddl : queries.getSchema()) {
-                        if (ddl != null && !ddl.trim().isEmpty()) {
-                            stmt.execute(ddl);
-                        }
-                    }
-                }
+                executeSchema(conn,queries.getSchema());
                 schemaTimeMs = (System.nanoTime() - start) / 1_000_000.0;
 
                 // Disable auto-commit for optimal batch insertion performance and accurate rate metrics
                 if(handler.supportsTransactions())
                     conn.setAutoCommit(false);
 
+                // single insert time
+                start = System.nanoTime();
+                try {
+                    // Insert Users
+                    try (PreparedStatement psUser = conn.prepareStatement(queries.getInsertUser())) {
+                        for (int i = 0; i < insertCount; i++) {
+                            psUser.setInt(1,i+1);
+                            psUser.setString(2, "BenchUser_" + i+1);
+                            psUser.setString(3, "user_" + (i+1) + "@benchmark.com");
+                            psUser.executeUpdate() ;
+                        }
+                    }
+
+                    // Insert Orders mapping to those users
+                    try (PreparedStatement psOrder = conn.prepareStatement(queries.getInsertOrder())) {
+                        for (int i = 0; i < insertCount; i++) {
+                            psOrder.setInt(1, i+1);
+                            psOrder.setInt(2, i+1);
+                            psOrder.setBigDecimal(3, BigDecimal.valueOf(10.0 + i));
+                            psOrder.setDate(4, new Date(System.currentTimeMillis()));
+                            psOrder.executeUpdate() ;
+                        }
+                    }
+                    int totalRowsInserted = insertCount*2 ;
+                    totalSingleInsertTime =( System.nanoTime() - start ) / 1_000_000.0 ;
+                    avgSingleInsertLatency = totalSingleInsertTime/ totalRowsInserted ;
+                    singleInsertRate = totalRowsInserted / (totalSingleInsertTime/1000.0) ;
+                    System.out.println(detail.getDbType());
+                    System.out.println(totalSingleInsertTime);
+                    System.out.println(avgSingleInsertLatency);
+                    System.out.println(singleInsertRate);
+
+                    if(handler.supportsTransactions())
+                        conn.commit();
+                } catch (Exception e) {
+                    if(handler.supportsTransactions())
+                        conn.rollback();
+                    throw e;
+                } finally {
+                    if(handler.supportsTransactions())
+                        conn.setAutoCommit(true);
+                }
+
+
+                // reset schema for batch insert
+                executeSchema(conn,queries.getSchema());
+
                 // 3. Measure Insertion Time and Rate
-//                List<Integer> userIds = new ArrayList<>();
+                if(handler.supportsTransactions())
+                    conn.setAutoCommit(false);
                 start = System.nanoTime();
                 try {
                     // Insert Users
@@ -169,11 +214,6 @@ public class BenchmarkService {
                             psUser.addBatch();
                         }
                         psUser.executeBatch();
-//                        try (ResultSet rs = psUser.getGeneratedKeys()) {
-//                            while (rs.next()) {
-//                                userIds.add(rs.getInt(1));
-//                            }
-//                        }
                     }
 
                     // Insert Orders mapping to those users
@@ -187,7 +227,7 @@ public class BenchmarkService {
                         }
                         psOrder.executeBatch();
                     }
-                    insertTimeMs = (System.nanoTime() - start) / 1_000_000.0;
+                    batchInsertTimeMs = (System.nanoTime() - start) / 1_000_000.0;
                     if(handler.supportsTransactions())
                         conn.commit();
                 } catch (Exception e) {
@@ -200,7 +240,7 @@ public class BenchmarkService {
                 }
 
                 int totalRowsInserted = insertCount*2 ; // Users + Orders
-                insertRate = insertTimeMs > 0 ? (totalRowsInserted / (insertTimeMs / 1000.0)) : 0;
+                batchInsertRate = batchInsertTimeMs > 0 ? (totalRowsInserted / (batchInsertTimeMs / 1000.0)) : 0;
 
                 // 4. Measure Read Metrics (Simple Read)
                 int readRuns = 50 ;
@@ -245,8 +285,11 @@ public class BenchmarkService {
             MetricResult metrics = MetricResult.builder()
                     .connectionTimeMs(Math.round(connTimeMs * 100.0) / 100.0)
                     .schemaCreationTimeMs(Math.round(schemaTimeMs * 100.0) / 100.0)
-                    .insertionTimeMs(Math.round(insertTimeMs * 100.0) / 100.0)
-                    .insertionRate(Math.round(insertRate * 100.0) / 100.0)
+                    .totalSingleInsertTime(Math.round(totalSingleInsertTime * 100.0) / 100.0 )
+                    .avgSingleInsertLatency(Math.round(avgSingleInsertLatency * 100.0) / 100.0)
+                    .singleInsertRate(Math.round(singleInsertRate * 100.0) / 100.0)
+                    .batchInsertionTimeMs(Math.round(batchInsertTimeMs * 100.0) / 100.0)
+                    .batchInsertionRate(Math.round(batchInsertRate * 100.0) / 100.0)
                     .readTimeMs(Math.round(readTimeMs * 100.0) / 100.0)
                     .joinTimeMs(Math.round(joinTimeMs * 100.0) / 100.0)
                     .aggregateTimeMs(Math.round(aggregateTimeMs * 100.0) / 100.0)
@@ -269,4 +312,16 @@ public class BenchmarkService {
                     .build();
         }
     }
+
+    public void executeSchema(Connection conn , List<String> schema) throws SQLException{
+        try (Statement stmt = conn.createStatement()) {
+            for (String ddl : schema) {
+                if (ddl != null && !ddl.trim().isEmpty()) {
+                    stmt.execute(ddl);
+                }
+            }
+        }
+    }
+
+
 }
