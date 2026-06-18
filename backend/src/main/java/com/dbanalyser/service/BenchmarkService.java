@@ -180,10 +180,6 @@ public class BenchmarkService {
                     totalSingleInsertTime =( System.nanoTime() - start ) / 1_000_000.0 ;
                     avgSingleInsertLatency = totalSingleInsertTime/ totalRowsInserted ;
                     singleInsertRate = totalRowsInserted / (totalSingleInsertTime/1000.0) ;
-                    System.out.println(detail.getDbType());
-                    System.out.println(totalSingleInsertTime);
-                    System.out.println(avgSingleInsertLatency);
-                    System.out.println(singleInsertRate);
 
                     if(handler.supportsTransactions())
                         conn.commit();
