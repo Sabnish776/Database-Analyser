@@ -1,6 +1,6 @@
 # Database Benchmarking & Performance Analyzer
 
-A full-stack performance analysis dashboard that evaluates and compares connection latencies, schema definition speeds, bulk insertion rates, and query execution times across **MySQL**, **PostgreSQL**, and **MariaDB** databases on-the-fly.
+A full-stack performance analysis dashboard that evaluates and compares connection latencies, schema definition speeds, bulk insertion rates, and query execution times across **MySQL**, **PostgreSQL**, **MariaDB**, **OracleSQL** and **ClickHouse** databases on-the-fly.
 
 ---
 

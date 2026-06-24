@@ -1,5 +1,6 @@
 package com.dbanalyser.service;
 
+import com.dbanalyser.customConfigModel.*;
 import com.dbanalyser.handler.DatabaseHandler;
 import com.dbanalyser.handler.DatabaseHandlerRegistry;
 import com.dbanalyser.model.*;
@@ -10,8 +11,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.sql.*;
 import java.sql.Date;
 import java.util.*;
@@ -24,6 +27,9 @@ public class BenchmarkService {
     private DatabaseHandlerRegistry handlerRegistry;
 
     private Map<String, DbQueries> defaultQueries;
+
+    @Autowired
+    private CsvImportService csvImportService;
 
     @PostConstruct
     public void init() {
@@ -318,6 +324,166 @@ public class BenchmarkService {
             }
         }
     }
+    public void validateConfig(Config config, Map<String, Path> csvPathMap) {
+        for(Table table : config.getTables()){
+            if(csvPathMap.get(table.getCsvFileName()) == null ){
+                throw new RuntimeException(table.getCsvFileName() +" not uploaded") ;
+            }
+        }
+    }
 
+    public CustomBenchmarkResponse runCustomBenchmark(Config config, Map<String, Path> csvPaths) throws IOException {
+
+        List<CustomBenchmarkResult> results = new ArrayList<>();
+
+
+        for(ConnectionDetail detail : config.getConnectionDetails()){
+            try{
+                CustomBenchmarkResult result = runSingleCustomBenchmark(detail,config,csvPaths) ;
+                results.add(result) ;
+            }catch (Exception e) {
+                log.error("Unexpected error benchmarking database: {}", detail.getName(), e);
+                results.add(CustomBenchmarkResult.builder()
+                        .connectionName(detail.getName())
+                        .dbType(detail.getDbType())
+                        .success(false)
+                        .error(e.getMessage() != null ? e.getMessage() : e.toString())
+                        .build()) ;
+            }
+        }
+        return CustomBenchmarkResponse.builder()
+                .benchmarkResults(results)
+                .build() ;
+
+
+    }
+    public CustomBenchmarkResult runSingleCustomBenchmark(ConnectionDetail detail,Config config,Map<String, Path> csvPaths) throws SQLException {
+        if (config.getQueries().isEmpty()) {
+            return CustomBenchmarkResult.builder()
+                    .connectionName(detail.getName())
+                    .dbType(detail.getDbType())
+                    .success(false)
+                    .error("No queries configuration found for database type: " + detail.getDbType())
+                    .build();
+        }
+
+
+        Optional<DatabaseHandler> handlerOpt = handlerRegistry.getHandler(detail.getDbType());
+        if (handlerOpt.isEmpty()) {
+            return CustomBenchmarkResult.builder()
+                    .connectionName(detail.getName())
+                    .dbType(detail.getDbType())
+                    .success(false)
+                    .error("Unsupported database type: " + detail.getDbType())
+                    .build();
+        }
+
+
+        List<CsvImportResult> csvImportResults ;
+        List<QueryResult> queryResults = new ArrayList<>() ;
+
+        try{
+
+            DatabaseHandler handler = handlerOpt.get();
+
+            try(Connection conn = DriverManager.getConnection(detail.getUrl(),detail.getUsername(),detail.getPassword())){
+
+                List<String> schemas = new ArrayList<>() ;
+                for(Table table : config.getTables()){
+                    handler.dropTable(conn,table.getTableName());
+                    String schema = table.getSchemas().get(detail.getDbType()) ;
+                    schemas.add(schema) ;
+                }
+                System.out.println(schemas);
+                executeSchema(conn,schemas);
+
+                try{
+                    csvImportResults = csvImportService.importCsv(conn,detail,handler,config.getTables(),csvPaths) ;
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
+                //query execution
+                int readRuns = 10 ;
+                long start =0;
+                double time = 0 ;
+
+                for(Query query : config.getQueries()){
+                    QueryResult result ;
+                    try(Statement st = conn.createStatement()){
+                        String sql = query.getQueriesByDb().get(detail.getDbType()) ;
+                        start = System.nanoTime() ;
+                        for(int i=0;i<readRuns;i++){
+                            st.execute(sql) ;
+                        }
+                        time = ((System.nanoTime() - start) / 1_000_000.0) /readRuns ;
+                        result = QueryResult.builder()
+                                .success(true)
+                                .queryName(query.getName())
+                                .category(query.getCategory())
+                                .executionTimeMs(Math.round(time * 100.0) / 100.0).build() ;
+
+                        log.info("{} executed : {} ->>> in {} ms", detail.getName() ,query.getCategory(), time);
+
+                    } catch (Exception e) {
+                        log.error(e.getMessage());
+                        result = QueryResult.builder()
+                                .success(false)
+                                .queryName(query.getName())
+                                .category(query.getCategory())
+                                .errorMessage(e.getMessage()).build() ;
+                    }
+                    queryResults.add(result) ;
+
+                }
+
+            }
+
+
+
+            return CustomBenchmarkResult.builder()
+                    .connectionName(detail.getName())
+                    .dbType(detail.getDbType())
+                    .success(true)
+                    .importMetrics(processImportMetric(csvImportResults))
+                    .csvImportResults(csvImportResults)
+                    .queryResults(queryResults).build();
+
+        } catch (Exception e) {
+            log.error(e.getMessage());
+            return CustomBenchmarkResult.builder()
+                    .connectionName(detail.getName())
+                    .dbType(detail.getDbType())
+                    .success(false)
+                    .error(e.getMessage() != null ? e.getMessage() : e.toString())
+                    .build() ;
+        }
+    }
+
+    private ImportMetrics processImportMetric(List<CsvImportResult> csvImportResults){
+        int tablesImported = 0;
+        long totalRowsLoaded = 0 ;
+        double totalImportTimeMs = 0;;
+        double averageTableImportTimeMs = 0 ;
+        double csvImportRate = 0 ; // rows per sec
+
+
+        for(CsvImportResult result : csvImportResults){
+            tablesImported++ ;
+            totalRowsLoaded += result.getRowsLoaded() ;
+            totalImportTimeMs += result.getLoadTimeMs() ;
+        }
+        averageTableImportTimeMs = tablesImported == 0 ? 0 : totalImportTimeMs / (double) tablesImported ;
+        csvImportRate = totalImportTimeMs == 0 ? 0 : totalRowsLoaded / (totalImportTimeMs/1000.0) ;
+
+
+        return ImportMetrics.builder()
+                .tablesImported(tablesImported)
+                .totalRowsLoaded(totalRowsLoaded)
+                .totalImportTimmeMs(Math.round(totalImportTimeMs*100.0)/100.0)
+                .averageTableImportTimeMs(Math.round(averageTableImportTimeMs*100.0)/100.0)
+                .csvImportRate(Math.round(csvImportRate*100.0)/100.0).build() ;
+
+    }
 
 }

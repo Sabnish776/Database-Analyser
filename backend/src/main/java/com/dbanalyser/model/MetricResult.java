@@ -8,9 +8,9 @@ import lombok.Data;
 public class MetricResult {
     private double connectionTimeMs;
     private double schemaCreationTimeMs;
-    private double totalSingleInsertTime = 0 ;
-    private double avgSingleInsertLatency = 0 ; // ms per row
-    private double singleInsertRate = 0 ; // rows per second
+    private double totalSingleInsertTime;
+    private double avgSingleInsertLatency; // ms per row
+    private double singleInsertRate; // rows per second
     private double batchInsertionTimeMs;
     private double batchInsertionRate; // rows per second
     private double readTimeMs;
