@@ -25,6 +25,7 @@ backend/*.iml
 backend/.env.properties
 backend/.env
 
+out
 
 # Editor directories and files
 .vscode/*
