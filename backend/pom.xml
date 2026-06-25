@@ -68,9 +68,14 @@
             <version>0.9.8</version>
             <scope>compile</scope>
         </dependency>
+<!--        <dependency>-->
+<!--            <groupId>com.clickhouse</groupId>-->
+<!--            <artifactId>clickhouse-client</artifactId>-->
+<!--            <version>0.9.8</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>com.clickhouse</groupId>
-            <artifactId>clickhouse-client</artifactId>
+            <artifactId>client-v2</artifactId>
             <version>0.9.8</version>
         </dependency>
         <dependency>

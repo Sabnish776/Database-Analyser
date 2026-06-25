@@ -1,7 +1,9 @@
 package com.dbanalyser.handler.impl;
 
-import com.clickhouse.client.*;
-import com.clickhouse.data.ClickHouseFile;
+import com.clickhouse.client.api.Client;
+import com.clickhouse.client.api.insert.InsertResponse;
+import com.clickhouse.client.api.metrics.ClientMetrics;
+import com.clickhouse.client.api.metrics.OperationMetrics;
 import com.clickhouse.data.ClickHouseFormat;
 import com.dbanalyser.customConfigModel.CsvImportResult;
 import com.dbanalyser.customConfigModel.Table;
@@ -10,11 +12,14 @@ import com.dbanalyser.model.ConnectionDetail;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @Component
@@ -36,45 +41,38 @@ public class ClickHouseHandler implements DatabaseHandler {
 
     @Override
     public CsvImportResult importCsv(Connection conn, ConnectionDetail detail, Table table, Path csvPath) {
-        String url = detail.getUrl().replace("jdbc:clickhouse://", "");
-        String host = url.split(":")[0];
-        String database = url.contains("/") ? url.split("/")[1] : "default";
         CsvImportResult result ;
-        ClickHouseNode server = ClickHouseNode.builder()
-                .host(host)
-                .database(database).port(ClickHouseProtocol.HTTP)
-                .credentials(ClickHouseCredentials
-                .fromUserAndPassword(detail.getUsername(),detail.getPassword())).build();
 
-        try (ClickHouseClient client = ClickHouseClient.newInstance() ;
-            Statement stmt = conn.createStatement() ;) {
+        String httpUrl = detail.getUrl().replace("jdbc:clickhouse://","http://") ;
+        String http = httpUrl.substring(0,httpUrl.lastIndexOf("/"));
+        System.out.println(http);
+        Client client1 = new Client.Builder()
+                .addEndpoint(http)
+                .setUsername(detail.getUsername())
+                .setPassword(detail.getPassword())
+                .build() ;
 
-            long start = System.nanoTime() ;
-            client.write(server)
-                    .table(table.getTableName())
-                    .format(ClickHouseFormat.CSVWithNames)
-                    .data(ClickHouseFile.of(csvPath.toString()))
-                    .executeAndWait();
-            double time = (System.nanoTime() - start) / 1_000_000.0;
-            log.info("csv Import Time of {} is {} ms for table {}",detail.getName(),time,table.getTableName());
-            long rows ;
-            try(ResultSet rs = stmt.executeQuery(
-                    "SELECT count(*) FROM " + table.getTableName())){
-                rs.next() ;
-                rows = rs.getLong(1) ;
-            }
-            log.info("{} rows imported in clickhouse\n", rows);
+        try{
+            InputStream in = Files.newInputStream(csvPath) ;
+            InsertResponse response1 = client1.insert("mydb."+table.getTableName(),in,ClickHouseFormat.CSVWithNames).get() ;
+            OperationMetrics metrics = response1.getMetrics() ;
+            System.out.println(metrics.getMetric(ClientMetrics.OP_DURATION));
+            System.out.println(metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
+//            System.out.println(metrics.getMetric(ServerMetrics.ELAPSED_TIME).getLong());
+
+            log.info("{} rows imported in clickhouse\n", response1.getWrittenRows());
 
             result = CsvImportResult.builder()
                     .success(true)
                     .tableName(table.getTableName())
                     .csvFileName(table.getCsvFileName())
-                    .rowsLoaded(rows)
-                    .loadTimeMs(Math.round(time * 100.0) / 100.0).build() ;
+                    .rowsLoaded(response1.getWrittenRows())
+                    .loadTimeMs(metrics.getMetric(ClientMetrics.OP_DURATION).getLong()).build() ;
 
 
-        } catch (ClickHouseException  | SQLException e) {
+        } catch (IOException | ExecutionException | InterruptedException e) {
             log.error(e.getMessage());
+            e.printStackTrace();
             result = CsvImportResult.builder()
                     .success(false)
                     .tableName(table.getTableName())
