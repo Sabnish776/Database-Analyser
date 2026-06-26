@@ -122,6 +122,7 @@ public class BenchmarkService {
 
         Optional<DatabaseHandler> handlerOpt = handlerRegistry.getHandler(detail.getDbType());
         if (handlerOpt.isEmpty()) {
+            log.error("Unsupported database type: {}", detail.getDbType());
             return BenchmarkResult.builder()
                     .connectionName(detail.getName())
                     .dbType(detail.getDbType())
@@ -388,7 +389,10 @@ public class BenchmarkService {
         try{
 
             DatabaseHandler handler = handlerOpt.get();
-
+            log.info("Loading driver for database type: {} with driver class: {}", detail.getDbType(), handler.getDriverClassName());
+            handler.loadDriver();
+            log.info("Driver loaded successfully. Attempting connection to: {}", detail.getUrl());
+            
             try(Connection conn = DriverManager.getConnection(detail.getUrl(),detail.getUsername(),detail.getPassword())){
 
 //                List<String> schemas = new ArrayList<>() ;
@@ -453,7 +457,7 @@ public class BenchmarkService {
                     .queryResults(queryResults).build();
 
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error("Error in runSingleCustomBenchmark for {}: {}", detail.getName(), e.getMessage(), e);
             return CustomBenchmarkResult.builder()
                     .connectionName(detail.getName())
                     .dbType(detail.getDbType())

@@ -1220,6 +1220,7 @@ export default function App() {
                   <option value="mariadb">MariaDB</option>
                   <option value="clickhouse">Clickhouse</option>
                   <option value="oraclesql">OracleSql</option>
+                  <option value="duckdb">Duckdb</option>
                 </select>
               </div>
 

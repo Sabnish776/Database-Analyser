@@ -65,5 +65,18 @@
     "read": "SELECT * FROM benchmark_users;",
     "join": "SELECT u.name, o.amount, o.order_date FROM benchmark_users u INNER JOIN benchmark_orders o ON u.id = o.user_id WHERE o.amount > ? LIMIT 100 ;",
     "aggregate": "SELECT u.name, SUM(o.amount) AS total_spent, COUNT() AS order_count FROM benchmark_users u INNER JOIN benchmark_orders o ON u.id = o.user_id GROUP BY u.id, u.name HAVING SUM(o.amount) > ? ;"
+  },
+  "duckdb": {
+    "schema": [
+      "DROP TABLE IF EXISTS benchmark_orders;",
+      "DROP TABLE IF EXISTS benchmark_users;",
+      "CREATE TABLE benchmark_users (id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, email VARCHAR NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);",
+      "CREATE TABLE benchmark_orders (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, amount DECIMAL(10,2) NOT NULL, order_date DATE NOT NULL, FOREIGN KEY (user_id) REFERENCES benchmark_users(id));"
+    ],
+    "insertUser": "INSERT INTO benchmark_users (id, name, email) VALUES (?, ?, ?);",
+    "insertOrder": "INSERT INTO benchmark_orders (id, user_id, amount, order_date) VALUES (?, ?, ?, ?);",
+    "read": "SELECT * FROM benchmark_users;",
+    "join": "SELECT u.name, o.amount, o.order_date FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id WHERE o.amount > ? LIMIT 100;",
+    "aggregate": "SELECT u.name, SUM(o.amount) AS total_spent, COUNT(o.id) AS order_count FROM benchmark_users u JOIN benchmark_orders o ON u.id = o.user_id GROUP BY u.id, u.name HAVING SUM(o.amount) > ?;"
   }
 }

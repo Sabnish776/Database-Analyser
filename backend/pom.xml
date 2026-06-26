@@ -104,6 +104,13 @@
             <scope>compile</scope>
         </dependency>
 
+        <!--        duckDB-->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+            <version>1.5.4.0</version>
+        </dependency>
+
         <!-- Jackson for JSON Parsing (comes with web starter, but good to ensure presence) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

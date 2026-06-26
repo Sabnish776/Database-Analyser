@@ -15,6 +15,10 @@ public interface DatabaseHandler {
     CsvImportResult importCsv(Connection conn , ConnectionDetail detail, Table table , Path csvPath) throws SQLException;
     void dropTable(Connection conn,String tableName) ;
     default void loadDriver() throws ClassNotFoundException {
-        Class.forName(getDriverClassName());
+        try {
+            Class.forName(getDriverClassName());
+        } catch (ClassNotFoundException e) {
+            throw e;
+        }
     }
 }
