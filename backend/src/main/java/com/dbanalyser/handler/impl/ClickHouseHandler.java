@@ -42,10 +42,21 @@ public class ClickHouseHandler implements DatabaseHandler {
     @Override
     public CsvImportResult importCsv(Connection conn, ConnectionDetail detail, Table table, Path csvPath) {
         CsvImportResult result ;
-
-        String httpUrl = detail.getUrl().replace("jdbc:clickhouse://","http://") ;
+        int indexOfParams = detail.getUrl().indexOf("?") ;
+        String dbUrl = "" ;
+        if(indexOfParams != -1){
+            dbUrl = detail.getUrl().substring(0,indexOfParams) ;
+        }else{
+            dbUrl = detail.getUrl() ;
+        }
+        String httpUrl = "" ;
+        if(dbUrl.startsWith("jdbc:clickhouse://")){
+            httpUrl = dbUrl.replace("jdbc:clickhouse://","http://") ;
+        }else if(dbUrl.startsWith("jdbc:ch://")){
+            httpUrl = dbUrl.replace("jdbc:ch://","http://") ;
+        }
         String http = httpUrl.substring(0,httpUrl.lastIndexOf("/"));
-        System.out.println(http);
+        String database = httpUrl.substring(httpUrl.lastIndexOf("/")+1) ;
         Client client1 = new Client.Builder()
                 .addEndpoint(http)
                 .setUsername(detail.getUsername())
@@ -54,13 +65,9 @@ public class ClickHouseHandler implements DatabaseHandler {
 
         try{
             InputStream in = Files.newInputStream(csvPath) ;
-            InsertResponse response1 = client1.insert("mydb."+table.getTableName(),in,ClickHouseFormat.CSVWithNames).get() ;
+            InsertResponse response1 = client1.insert(database+"."+table.getTableName(),in,ClickHouseFormat.CSVWithNames).get() ;
             OperationMetrics metrics = response1.getMetrics() ;
-            System.out.println(metrics.getMetric(ClientMetrics.OP_DURATION));
-            System.out.println(metrics.getMetric(ClientMetrics.OP_DURATION).getLong());
-//            System.out.println(metrics.getMetric(ServerMetrics.ELAPSED_TIME).getLong());
 
-            log.info("{} rows imported in clickhouse\n", response1.getWrittenRows());
 
             result = CsvImportResult.builder()
                     .success(true)

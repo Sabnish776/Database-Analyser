@@ -67,7 +67,6 @@ public class BenchmarkController {
             System.out.println(csvPath);
             csvPaths.put(csv.getOriginalFilename(),csvPath) ;
         }
-        System.out.println(config);
         try{
             benchmarkService.validateConfig(config,csvPaths) ;
         } catch (Exception e) {

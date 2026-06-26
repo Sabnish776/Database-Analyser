@@ -4,13 +4,13 @@ import com.dbanalyser.customConfigModel.CsvImportResult;
 import com.dbanalyser.customConfigModel.Table;
 import com.dbanalyser.handler.DatabaseHandler;
 import com.dbanalyser.model.ConnectionDetail;
-import lombok.extern.slf4j.Slf4j;import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
 
 @Slf4j
 @Component
@@ -51,9 +51,6 @@ public class MariadbHandler implements DatabaseHandler {
             long start = System.nanoTime() ;
             int rows = stmt.executeUpdate(sql);
             double time = (System.nanoTime() - start) / 1_000_000.0;
-            log.info("csv Import Time of {} is {} ms for table {}",detail.getName(),time,table.getTableName());
-
-            log.info("{} rows imported in mariadb", rows);
             result = CsvImportResult.builder()
                     .success(true)
                     .tableName(table.getTableName())

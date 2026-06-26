@@ -47,10 +47,6 @@ public class MysqlHandler implements DatabaseHandler {
             long start = System.nanoTime() ;
             int rows = stmt.executeUpdate(sql) ;
             double time = (System.nanoTime() - start) / 1_000_000.0;
-
-            log.info("csv Import Time of {} is {} ms for table {}",detail.getName(),time,table.getTableName());
-            log.info("{} rows imported in mysql\n", rows);
-
             result = CsvImportResult.builder()
                     .success(true)
                     .tableName(table.getTableName())

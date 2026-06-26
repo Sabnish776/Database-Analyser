@@ -282,6 +282,9 @@ public class BenchmarkService {
                     }
                 }
                 aggregateTimeMs = (System.nanoTime() - start) / 1_000_000.0;
+
+                // reset -> cleans storage
+                executeSchema(conn,queries.getSchema());
             }
 
             MetricResult metrics = MetricResult.builder()
@@ -296,7 +299,7 @@ public class BenchmarkService {
                     .joinTimeMs(Math.round(joinTimeMs * 100.0) / 100.0)
                     .aggregateTimeMs(Math.round(aggregateTimeMs * 100.0) / 100.0)
                     .build();
-
+            log.info("{} benchmarking finished",detail.getName()) ;
             return BenchmarkResult.builder()
                     .connectionName(detail.getName())
                     .dbType(detail.getDbType())
@@ -388,23 +391,23 @@ public class BenchmarkService {
 
             try(Connection conn = DriverManager.getConnection(detail.getUrl(),detail.getUsername(),detail.getPassword())){
 
-                List<String> schemas = new ArrayList<>() ;
-                for(Table table : config.getTables()){
-                    handler.dropTable(conn,table.getTableName());
-                    String schema = table.getSchemas().get(detail.getDbType()) ;
-                    schemas.add(schema) ;
-                }
-                System.out.println(schemas);
-                executeSchema(conn,schemas);
+//                List<String> schemas = new ArrayList<>() ;
+//                for(Table table : config.getTables()){
+//                    handler.dropTable(conn,table.getTableName());
+//                    String schema = table.getSchemas().get(detail.getDbType()) ;
+//                    schemas.add(schema) ;
+//                }
+//                System.out.println(schemas);
+//                executeSchema(conn,schemas);
 
                 try{
-                    csvImportResults = csvImportService.importCsv(conn,detail,handler,config.getTables(),csvPaths) ;
+                    csvImportResults = csvImportService.createAndImportCsv(conn,detail,handler,config.getTables(),csvPaths) ;
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
 
                 //query execution
-                int readRuns = 10 ;
+                int readRuns = 50 ;
                 long start =0;
                 double time = 0 ;
 
