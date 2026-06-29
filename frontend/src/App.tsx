@@ -153,6 +153,8 @@ export default function App() {
   const [runningCustomBenchmark, setRunningCustomBenchmark] = useState<boolean>(false);
   const [customBenchmarkResults, setCustomBenchmarkResults] = useState<CustomBenchmarkResult[]>([]);
   const [customConfigText, setCustomConfigText] = useState<string>('');
+  const [enableThresholdMode, setEnableThresholdMode] = useState<boolean>(false);
+  const [thresholdRecords, setThresholdRecords] = useState<number>(30000);
 
   // Modal visibility states
   const [showDefaultQueriesModal, setShowDefaultQueriesModal] = useState<boolean>(false);
@@ -328,6 +330,7 @@ export default function App() {
       customCsvFiles.forEach(file => {
         formData.append('csvFiles', file);
       });
+      formData.append('thresholdRecords', String(enableThresholdMode ? thresholdRecords : 0));
 
       const res = await fetch(`${API_BASE}/run-custom-benchmark`, {
         method: 'POST',
@@ -535,6 +538,9 @@ export default function App() {
                     <option value="1000">1,000 rows (Default)</option>
                     <option value="5000">5,000 rows</option>
                     <option value="10000">10,000 rows</option>
+                    <option value="50000">50,000 rows</option>
+                    <option value="100000">100,000 rows</option>
+                    <option value="500000">500,000 rows</option>
                   </select>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                     Rows inserted for each table in schema.
@@ -702,11 +708,71 @@ export default function App() {
                   </button>
                 </div>
 
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="enable-threshold-input" className="toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', userSelect: 'none' }}>
+                      <div className={`toggle-switch ${enableThresholdMode ? 'active' : ''}`} style={{
+                        width: '40px',
+                        height: '20px',
+                        background: enableThresholdMode ? 'var(--primary)' : '#334155',
+                        borderRadius: '10px',
+                        position: 'relative',
+                        transition: 'background 0.3s'
+                      }}>
+                        <div className="toggle-knob" style={{
+                          width: '16px',
+                          height: '16px',
+                          background: 'white',
+                          borderRadius: '50%',
+                          position: 'absolute',
+                          top: '2px',
+                          left: enableThresholdMode ? '22px' : '2px',
+                          transition: 'left 0.3s'
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Enable Threshold Mode
+                      </span>
+                    </label>
+                    <input
+                      id="enable-threshold-input"
+                      type="checkbox"
+                      checked={enableThresholdMode}
+                      onChange={(e) => setEnableThresholdMode(e.target.checked)}
+                      style={{ display: 'none' }}
+                    />
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                      Toggle on to loop CSV loading until a minimum row threshold is met. Toggle off for 50-trial average runs.
+                    </p>
+                  </div>
+
+                  {enableThresholdMode && (
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ marginBottom: '0.4rem', display: 'block' }}>Threshold Records Selection</label>
+                      <select
+                        className="form-select"
+                        value={thresholdRecords}
+                        onChange={(e) => setThresholdRecords(Number(e.target.value))}
+                      >
+                        <option value="30000">30,000</option>
+                        <option value="50000">50,000</option>
+                        <option value="100000">100,000</option>
+                        <option value="500000">500,000</option>
+                        <option value="1000000">1,000,000 (1M)</option>
+                        <option value="5000000">5,000,000 (5M)</option>
+                        <option value="10000000">10,000,000 (10M)</option>
+                      </select>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                        Repeat CSV import runs until the total records loaded exceeds this number.
+                      </span>
+                    </div>
+                  )}
+
                   <div className="run-bar" style={{ margin: 0, padding: '0.75rem 1rem', border: 'none', background: 'rgba(255,255,255,0.02)', flexDirection: 'column', gap: '1rem', alignItems: 'stretch' }}>
                     <div className="run-stats-info" style={{ justifyContent: 'space-between', fontSize: '0.8rem' }}>
                       <span>Config JSON: <strong>{customConfigFile ? 'Loaded' : 'None'}</strong></span>
                       <span>CSV Files: <strong>{customCsvFiles.length} loaded</strong></span>
+                      {enableThresholdMode && <span>Threshold: <strong>{thresholdRecords.toLocaleString()}</strong></span>}
                     </div>
                     <button
                       className="btn btn-primary"

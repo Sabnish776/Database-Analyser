@@ -74,4 +74,11 @@ public class MysqlHandler implements DatabaseHandler {
         }
     }
 
+//    @Override
+//    public TableStatistics getTableStatistics(Connection conn, String database, String tableName) {
+//        String countSql = "SELECT COUNT(*) FROM " + tableName ;
+//        try(Statement st = conn.g)
+//        return null;
+//    }
+
 }

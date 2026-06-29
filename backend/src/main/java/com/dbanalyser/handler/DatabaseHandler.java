@@ -21,4 +21,5 @@ public interface DatabaseHandler {
             throw e;
         }
     }
+//    TableStatistics getTableStatistics(Connection conn, String database, String tableName;
 }

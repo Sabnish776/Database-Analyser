@@ -51,7 +51,7 @@ public class BenchmarkController {
 
     @PostMapping("/run-custom-benchmark")
     public ResponseEntity<CustomBenchmarkResponse> runCustomBenchmark(
-            @RequestParam MultipartFile configFile, @RequestParam List<MultipartFile> csvFiles
+            @RequestParam MultipartFile configFile, @RequestParam List<MultipartFile> csvFiles , @RequestParam(defaultValue = "0") long thresholdRecords
             ) throws IOException {
         ObjectMapper mapper = new ObjectMapper() ;
         Config config = mapper.readValue(configFile.getInputStream(),Config.class) ;
@@ -73,7 +73,7 @@ public class BenchmarkController {
             System.out.println(e.getMessage());
             throw new RuntimeException(e);
         }
-        CustomBenchmarkResponse response = benchmarkService.runCustomBenchmark(config,csvPaths) ;
+        CustomBenchmarkResponse response = benchmarkService.runCustomBenchmark(config,csvPaths,thresholdRecords) ;
         return ResponseEntity.ok().body(response) ;
     }
 }

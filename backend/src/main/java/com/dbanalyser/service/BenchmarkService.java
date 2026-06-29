@@ -230,9 +230,9 @@ public class BenchmarkService {
                         }
                         psOrder.executeBatch();
                     }
-                    batchInsertTimeMs = (System.nanoTime() - start) / 1_000_000.0;
                     if(handler.supportsTransactions())
                         conn.commit();
+                    batchInsertTimeMs = (System.nanoTime() - start) / 1_000_000.0;
                 } catch (Exception e) {
                     if(handler.supportsTransactions())
                         conn.rollback();
@@ -300,6 +300,7 @@ public class BenchmarkService {
                     .joinTimeMs(Math.round(joinTimeMs * 100.0) / 100.0)
                     .aggregateTimeMs(Math.round(aggregateTimeMs * 100.0) / 100.0)
                     .build();
+
             log.info("{} benchmarking finished",detail.getName()) ;
             return BenchmarkResult.builder()
                     .connectionName(detail.getName())
@@ -336,14 +337,25 @@ public class BenchmarkService {
         }
     }
 
-    public CustomBenchmarkResponse runCustomBenchmark(Config config, Map<String, Path> csvPaths) throws IOException {
+    public String returnDatabase(ConnectionDetail detail){
+        int indexOfParams = detail.getUrl().indexOf("?") ;
+        String dbUrl = "" ;
+        if(indexOfParams != -1){
+            dbUrl = detail.getUrl().substring(0,indexOfParams) ;
+        }else{
+            dbUrl = detail.getUrl() ;
+        }
+        return dbUrl.substring(dbUrl.lastIndexOf("/")+1) ;
+    }
+
+    public CustomBenchmarkResponse runCustomBenchmark(Config config, Map<String, Path> csvPaths, long thresholdRecords) throws IOException {
 
         List<CustomBenchmarkResult> results = new ArrayList<>();
 
 
         for(ConnectionDetail detail : config.getConnectionDetails()){
             try{
-                CustomBenchmarkResult result = runSingleCustomBenchmark(detail,config,csvPaths) ;
+                CustomBenchmarkResult result = runSingleCustomBenchmark(detail,config,csvPaths,thresholdRecords) ;
                 results.add(result) ;
             }catch (Exception e) {
                 log.error("Unexpected error benchmarking database: {}", detail.getName(), e);
@@ -361,7 +373,7 @@ public class BenchmarkService {
 
 
     }
-    public CustomBenchmarkResult runSingleCustomBenchmark(ConnectionDetail detail,Config config,Map<String, Path> csvPaths) throws SQLException {
+    public CustomBenchmarkResult runSingleCustomBenchmark(ConnectionDetail detail, Config config, Map<String, Path> csvPaths, long thresholdRecords) throws SQLException {
         if (config.getQueries().isEmpty()) {
             return CustomBenchmarkResult.builder()
                     .connectionName(detail.getName())
@@ -395,23 +407,22 @@ public class BenchmarkService {
             
             try(Connection conn = DriverManager.getConnection(detail.getUrl(),detail.getUsername(),detail.getPassword())){
 
-//                List<String> schemas = new ArrayList<>() ;
-//                for(Table table : config.getTables()){
-//                    handler.dropTable(conn,table.getTableName());
-//                    String schema = table.getSchemas().get(detail.getDbType()) ;
-//                    schemas.add(schema) ;
-//                }
-//                System.out.println(schemas);
-//                executeSchema(conn,schemas);
+                List<String> schemas = new ArrayList<>() ;
+                for(Table table : config.getTables()){
+                    handler.dropTable(conn,table.getTableName());
+                    String schema = table.getSchemas().get(detail.getDbType()) ;
+                    schemas.add(schema) ;
+                }
+                executeSchema(conn,schemas);
 
                 try{
-                    csvImportResults = csvImportService.createAndImportCsv(conn,detail,handler,config.getTables(),csvPaths) ;
+                    csvImportResults = csvImportService.createAndImportCsv(conn,detail,handler,config.getTables(),csvPaths,thresholdRecords) ;
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
 
                 //query execution
-                int readRuns = 50 ;
+                int readRuns = thresholdRecords == 0 ? 50 : 5 ;
                 long start =0;
                 double time = 0 ;
 
@@ -421,7 +432,11 @@ public class BenchmarkService {
                         String sql = query.getQueriesByDb().get(detail.getDbType()) ;
                         start = System.nanoTime() ;
                         for(int i=0;i<readRuns;i++){
-                            st.execute(sql) ;
+                            try (ResultSet rs = st.executeQuery(sql)) {
+                                while (rs.next()) {
+                                    // consuming rows
+                                }
+                            }
                         }
                         time = ((System.nanoTime() - start) / 1_000_000.0) /readRuns ;
                         result = QueryResult.builder()
@@ -442,6 +457,12 @@ public class BenchmarkService {
                     }
                     queryResults.add(result) ;
 
+                }
+
+
+                // drop tables for resetting dbs
+                for(Table table : config.getTables()){
+                    handler.dropTable(conn,table.getTableName()) ;
                 }
 
             }
