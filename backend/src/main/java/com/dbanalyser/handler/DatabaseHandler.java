@@ -3,6 +3,7 @@ package com.dbanalyser.handler;
 import com.dbanalyser.customConfigModel.CsvImportResult;
 import com.dbanalyser.customConfigModel.Table;
 import com.dbanalyser.model.ConnectionDetail;
+import com.dbanalyser.model.TableStatistics;
 
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -21,5 +22,5 @@ public interface DatabaseHandler {
             throw e;
         }
     }
-//    TableStatistics getTableStatistics(Connection conn, String database, String tableName;
+    TableStatistics getTableStatistics(Connection conn, String database, String tableName) throws SQLException;
 }

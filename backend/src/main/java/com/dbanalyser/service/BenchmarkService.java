@@ -40,7 +40,8 @@ public class BenchmarkService {
                 log.error("Default queries config file benchmark-queries.json not found in resources!");
                 defaultQueries = new HashMap<>();
             } else {
-                defaultQueries = mapper.readValue(is, new TypeReference<Map<String, DbQueries>>() {});
+                defaultQueries = mapper.readValue(is, new TypeReference<Map<String, DbQueries>>() {
+                });
                 log.info("Successfully loaded default benchmark queries configuration.");
             }
         } catch (Exception e) {
@@ -68,7 +69,8 @@ public class BenchmarkService {
             DatabaseHandler handler = handlerOpt.get();
             handler.loadDriver();
             start = System.nanoTime();
-            try (Connection conn = DriverManager.getConnection(detail.getUrl(), detail.getUsername(), detail.getPassword())) {
+            try (Connection conn = DriverManager.getConnection(detail.getUrl(), detail.getUsername(),
+                    detail.getPassword())) {
                 double connTimeMs = (System.nanoTime() - start) / 1_000_000.0;
                 return ConnectionTestResult.builder()
                         .connectionName(detail.getName())
@@ -94,7 +96,8 @@ public class BenchmarkService {
 
         for (ConnectionDetail connDetail : request.getConnections()) {
             try {
-                BenchmarkResult result = runSingleBenchmark(connDetail, activeQueries.get(connDetail.getDbType().toLowerCase()), request.getInsertCount());
+                BenchmarkResult result = runSingleBenchmark(connDetail,
+                        activeQueries.get(connDetail.getDbType().toLowerCase()), request.getInsertCount());
                 results.add(result);
             } catch (Exception e) {
                 log.error("Unexpected error benchmarking database: {}", connDetail.getName(), e);
@@ -137,27 +140,31 @@ public class BenchmarkService {
 
             double connTimeMs;
             double schemaTimeMs = 0;
-            double totalSingleInsertTime = 0 ;
-            double avgSingleInsertLatency = 0 ; // ms per row
-            double singleInsertRate = 0 ; // rows per sec
+            double totalSingleInsertTime = 0;
+            double avgSingleInsertLatency = 0; // ms per row
+            double singleInsertRate = 0; // rows per sec
             double batchInsertTimeMs = 0;
             double batchInsertRate = 0;
             double readTimeMs = 0;
             double joinTimeMs = 0;
             double aggregateTimeMs = 0;
 
+            List<TableStatistics> tableStatisticsList = new ArrayList<>();
+
             // 1. Measure Connection Time
             long start = System.nanoTime();
-            try (Connection conn = DriverManager.getConnection(detail.getUrl(), detail.getUsername(), detail.getPassword())) {
+            try (Connection conn = DriverManager.getConnection(detail.getUrl(), detail.getUsername(),
+                    detail.getPassword())) {
                 connTimeMs = (System.nanoTime() - start) / 1_000_000.0;
 
                 // 2. Measure Schema Creation Time
                 start = System.nanoTime();
-                executeSchema(conn,queries.getSchema());
+                executeSchema(conn, queries.getSchema());
                 schemaTimeMs = (System.nanoTime() - start) / 1_000_000.0;
 
-                // Disable auto-commit for optimal batch insertion performance and accurate rate metrics
-                if(handler.supportsTransactions())
+                // Disable auto-commit for optimal batch insertion performance and accurate rate
+                // metrics
+                if (handler.supportsTransactions())
                     conn.setAutoCommit(false);
 
                 // single insert time
@@ -166,54 +173,56 @@ public class BenchmarkService {
                     // Insert Users
                     try (PreparedStatement psUser = conn.prepareStatement(queries.getInsertUser())) {
                         for (int i = 0; i < insertCount; i++) {
-                            psUser.setInt(1,i+1);
-                            psUser.setString(2, "BenchUser_" + i+1);
-                            psUser.setString(3, "user_" + (i+1) + "@benchmark.com");
-                            psUser.executeUpdate() ;
+                            psUser.setInt(1, i + 1);
+                            psUser.setString(2, "BenchUser_" + i + 1);
+                            psUser.setString(3, "user_" + (i + 1) + "@benchmark.com");
+                            psUser.executeUpdate();
                         }
                     }
 
                     // Insert Orders mapping to those users
                     try (PreparedStatement psOrder = conn.prepareStatement(queries.getInsertOrder())) {
                         for (int i = 0; i < insertCount; i++) {
-                            psOrder.setInt(1, i+1);
-                            psOrder.setInt(2, i+1);
+                            psOrder.setInt(1, i + 1);
+                            psOrder.setInt(2, i + 1);
                             psOrder.setBigDecimal(3, BigDecimal.valueOf(10.0 + i));
                             psOrder.setDate(4, new Date(System.currentTimeMillis()));
-                            psOrder.executeUpdate() ;
+                            psOrder.executeUpdate();
                         }
                     }
-                    int totalRowsInserted = insertCount*2 ;
-                    totalSingleInsertTime =( System.nanoTime() - start ) / 1_000_000.0 ;
-                    avgSingleInsertLatency = totalSingleInsertTime/ totalRowsInserted ;
-                    singleInsertRate = totalRowsInserted / (totalSingleInsertTime/1000.0) ;
+                    int totalRowsInserted = insertCount * 2;
+                    totalSingleInsertTime = (System.nanoTime() - start) / 1_000_000.0;
+                    avgSingleInsertLatency = totalSingleInsertTime / totalRowsInserted;
+                    singleInsertRate = totalRowsInserted / (totalSingleInsertTime / 1000.0);
 
-                    if(handler.supportsTransactions())
+                    if (handler.supportsTransactions())
                         conn.commit();
+                    if (handler.getDbType().equalsIgnoreCase("duckdb"))
+                        conn.createStatement().execute("CHECKPOINT");
+
                 } catch (Exception e) {
-                    if(handler.supportsTransactions())
+                    if (handler.supportsTransactions())
                         conn.rollback();
                     throw e;
                 } finally {
-                    if(handler.supportsTransactions())
+                    if (handler.supportsTransactions())
                         conn.setAutoCommit(true);
                 }
 
-
                 // reset schema for batch insert
-                executeSchema(conn,queries.getSchema());
+                executeSchema(conn, queries.getSchema());
 
                 // 3. Measure Insertion Time and Rate
-                if(handler.supportsTransactions())
+                if (handler.supportsTransactions())
                     conn.setAutoCommit(false);
                 start = System.nanoTime();
                 try {
                     // Insert Users
                     try (PreparedStatement psUser = conn.prepareStatement(queries.getInsertUser())) {
                         for (int i = 0; i < insertCount; i++) {
-                            psUser.setInt(1,i+1);
-                            psUser.setString(2, "BenchUser_" + i+1);
-                            psUser.setString(3, "user_" + (i+1) + "@benchmark.com");
+                            psUser.setInt(1, i + 1);
+                            psUser.setString(2, "BenchUser_" + i + 1);
+                            psUser.setString(3, "user_" + (i + 1) + "@benchmark.com");
                             psUser.addBatch();
                         }
                         psUser.executeBatch();
@@ -222,38 +231,39 @@ public class BenchmarkService {
                     // Insert Orders mapping to those users
                     try (PreparedStatement psOrder = conn.prepareStatement(queries.getInsertOrder())) {
                         for (int i = 0; i < insertCount; i++) {
-                            psOrder.setInt(1, i+1);
-                            psOrder.setInt(2, i+1);
+                            psOrder.setInt(1, i + 1);
+                            psOrder.setInt(2, i + 1);
                             psOrder.setBigDecimal(3, BigDecimal.valueOf(10.0 + i));
                             psOrder.setDate(4, new Date(System.currentTimeMillis()));
                             psOrder.addBatch();
                         }
                         psOrder.executeBatch();
                     }
-                    if(handler.supportsTransactions())
+                    if (handler.supportsTransactions())
                         conn.commit();
+                    if (handler.getDbType().equalsIgnoreCase("duckdb"))
+                        conn.createStatement().execute("CHECKPOINT");
                     batchInsertTimeMs = (System.nanoTime() - start) / 1_000_000.0;
                 } catch (Exception e) {
-                    if(handler.supportsTransactions())
+                    if (handler.supportsTransactions())
                         conn.rollback();
                     throw e;
                 } finally {
-                    if(handler.supportsTransactions())
+                    if (handler.supportsTransactions())
                         conn.setAutoCommit(true);
                 }
 
-                int totalRowsInserted = insertCount*2 ; // Users + Orders
+                int totalRowsInserted = insertCount * 2; // Users + Orders
                 batchInsertRate = batchInsertTimeMs > 0 ? (totalRowsInserted / (batchInsertTimeMs / 1000.0)) : 0;
 
                 // 4. Measure Read Metrics (Simple Read)
-                int readRuns = 50 ;
+                int readRuns = 50;
                 start = System.nanoTime();
-                for(int i=0;i<readRuns;i++){
-                    try(
+                for (int i = 0; i < readRuns; i++) {
+                    try (
                             Statement st = conn.createStatement();
-                            ResultSet rs = st.executeQuery(queries.getRead())
-                    ){
-                        while(rs.next()){
+                            ResultSet rs = st.executeQuery(queries.getRead())) {
+                        while (rs.next()) {
                             // consume rows
                         }
                     }
@@ -284,14 +294,21 @@ public class BenchmarkService {
                 }
                 aggregateTimeMs = (System.nanoTime() - start) / 1_000_000.0;
 
+                List<String> tableNames = List.of("benchmark_users", "benchmark_orders");
+
+                for (String table : tableNames) {
+                    TableStatistics statistics = handler.getTableStatistics(conn, returnDatabase(detail), table);
+                    tableStatisticsList.add(statistics);
+                }
+
                 // reset -> cleans storage
-                executeSchema(conn,queries.getSchema());
+                executeSchema(conn, queries.getSchema());
             }
 
             MetricResult metrics = MetricResult.builder()
                     .connectionTimeMs(Math.round(connTimeMs * 100.0) / 100.0)
                     .schemaCreationTimeMs(Math.round(schemaTimeMs * 100.0) / 100.0)
-                    .totalSingleInsertTime(Math.round(totalSingleInsertTime * 100.0) / 100.0 )
+                    .totalSingleInsertTime(Math.round(totalSingleInsertTime * 100.0) / 100.0)
                     .avgSingleInsertLatency(Math.round(avgSingleInsertLatency * 100.0) / 100.0)
                     .singleInsertRate(Math.round(singleInsertRate * 100.0) / 100.0)
                     .batchInsertionTimeMs(Math.round(batchInsertTimeMs * 100.0) / 100.0)
@@ -301,12 +318,13 @@ public class BenchmarkService {
                     .aggregateTimeMs(Math.round(aggregateTimeMs * 100.0) / 100.0)
                     .build();
 
-            log.info("{} benchmarking finished",detail.getName()) ;
+            log.info("{} benchmarking finished", detail.getName());
             return BenchmarkResult.builder()
                     .connectionName(detail.getName())
                     .dbType(detail.getDbType())
                     .success(true)
                     .metrics(metrics)
+                    .tableStatisticsList(tableStatisticsList)
                     .build();
 
         } catch (Exception e) {
@@ -320,7 +338,7 @@ public class BenchmarkService {
         }
     }
 
-    public void executeSchema(Connection conn , List<String> schema) throws SQLException{
+    public void executeSchema(Connection conn, List<String> schema) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             for (String ddl : schema) {
                 if (ddl != null && !ddl.trim().isEmpty()) {
@@ -329,51 +347,53 @@ public class BenchmarkService {
             }
         }
     }
+
     public void validateConfig(Config config, Map<String, Path> csvPathMap) {
-        for(Table table : config.getTables()){
-            if(csvPathMap.get(table.getCsvFileName()) == null ){
-                throw new RuntimeException(table.getCsvFileName() +" not uploaded") ;
+        for (Table table : config.getTables()) {
+            if (csvPathMap.get(table.getCsvFileName()) == null) {
+                throw new RuntimeException(table.getCsvFileName() + " not uploaded");
             }
         }
     }
 
-    public String returnDatabase(ConnectionDetail detail){
-        int indexOfParams = detail.getUrl().indexOf("?") ;
-        String dbUrl = "" ;
-        if(indexOfParams != -1){
-            dbUrl = detail.getUrl().substring(0,indexOfParams) ;
-        }else{
-            dbUrl = detail.getUrl() ;
+    public String returnDatabase(ConnectionDetail detail) {
+        int indexOfParams = detail.getUrl().indexOf("?");
+        String dbUrl = "";
+        if (indexOfParams != -1) {
+            dbUrl = detail.getUrl().substring(0, indexOfParams);
+        } else {
+            dbUrl = detail.getUrl();
         }
-        return dbUrl.substring(dbUrl.lastIndexOf("/")+1) ;
+        return dbUrl.substring(dbUrl.lastIndexOf("/") + 1);
     }
 
-    public CustomBenchmarkResponse runCustomBenchmark(Config config, Map<String, Path> csvPaths, long thresholdRecords) throws IOException {
+    public CustomBenchmarkResponse runCustomBenchmark(Config config, Map<String, Path> csvPaths, long thresholdRecords)
+            throws IOException {
 
         List<CustomBenchmarkResult> results = new ArrayList<>();
 
-
-        for(ConnectionDetail detail : config.getConnectionDetails()){
-            try{
-                CustomBenchmarkResult result = runSingleCustomBenchmark(detail,config,csvPaths,thresholdRecords) ;
-                results.add(result) ;
-            }catch (Exception e) {
+        for (ConnectionDetail detail : config.getConnectionDetails()) {
+            try {
+                CustomBenchmarkResult result = runSingleCustomBenchmark(detail, config, csvPaths, thresholdRecords);
+                results.add(result);
+            } catch (Exception e) {
                 log.error("Unexpected error benchmarking database: {}", detail.getName(), e);
                 results.add(CustomBenchmarkResult.builder()
                         .connectionName(detail.getName())
                         .dbType(detail.getDbType())
                         .success(false)
                         .error(e.getMessage() != null ? e.getMessage() : e.toString())
-                        .build()) ;
+                        .build());
             }
         }
         return CustomBenchmarkResponse.builder()
                 .benchmarkResults(results)
-                .build() ;
-
+                .build();
 
     }
-    public CustomBenchmarkResult runSingleCustomBenchmark(ConnectionDetail detail, Config config, Map<String, Path> csvPaths, long thresholdRecords) throws SQLException {
+
+    public CustomBenchmarkResult runSingleCustomBenchmark(ConnectionDetail detail, Config config,
+            Map<String, Path> csvPaths, long thresholdRecords) throws SQLException {
         if (config.getQueries().isEmpty()) {
             return CustomBenchmarkResult.builder()
                     .connectionName(detail.getName())
@@ -382,7 +402,6 @@ public class BenchmarkService {
                     .error("No queries configuration found for database type: " + detail.getDbType())
                     .build();
         }
-
 
         Optional<DatabaseHandler> handlerOpt = handlerRegistry.getHandler(detail.getDbType());
         if (handlerOpt.isEmpty()) {
@@ -394,58 +413,61 @@ public class BenchmarkService {
                     .build();
         }
 
+        List<CsvImportResult> csvImportResults;
+        List<QueryResult> queryResults = new ArrayList<>();
+        List<TableStatistics> tableStatistics = new ArrayList<>();
 
-        List<CsvImportResult> csvImportResults ;
-        List<QueryResult> queryResults = new ArrayList<>() ;
-
-        try{
+        try {
 
             DatabaseHandler handler = handlerOpt.get();
-            log.info("Loading driver for database type: {} with driver class: {}", detail.getDbType(), handler.getDriverClassName());
+            log.info("Loading driver for database type: {} with driver class: {}", detail.getDbType(),
+                    handler.getDriverClassName());
             handler.loadDriver();
             log.info("Driver loaded successfully. Attempting connection to: {}", detail.getUrl());
-            
-            try(Connection conn = DriverManager.getConnection(detail.getUrl(),detail.getUsername(),detail.getPassword())){
 
-                List<String> schemas = new ArrayList<>() ;
-                for(Table table : config.getTables()){
-                    handler.dropTable(conn,table.getTableName());
-                    String schema = table.getSchemas().get(detail.getDbType()) ;
-                    schemas.add(schema) ;
+            try (Connection conn = DriverManager.getConnection(detail.getUrl(), detail.getUsername(),
+                    detail.getPassword())) {
+
+                List<String> schemas = new ArrayList<>();
+                for (Table table : config.getTables()) {
+                    handler.dropTable(conn, table.getTableName());
+                    String schema = table.getSchemas().get(detail.getDbType());
+                    schemas.add(schema);
                 }
-                executeSchema(conn,schemas);
+                executeSchema(conn, schemas);
 
-                try{
-                    csvImportResults = csvImportService.createAndImportCsv(conn,detail,handler,config.getTables(),csvPaths,thresholdRecords) ;
+                try {
+                    csvImportResults = csvImportService.createAndImportCsv(conn, detail, handler, config.getTables(),
+                            csvPaths, thresholdRecords);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
 
-                //query execution
-                int readRuns = thresholdRecords == 0 ? 50 : 5 ;
-                long start =0;
-                double time = 0 ;
+                // query execution
+                int readRuns = thresholdRecords == 0 ? 50 : 5;
+                long start = 0;
+                double time = 0;
 
-                for(Query query : config.getQueries()){
-                    QueryResult result ;
-                    try(Statement st = conn.createStatement()){
-                        String sql = query.getQueriesByDb().get(detail.getDbType()) ;
-                        start = System.nanoTime() ;
-                        for(int i=0;i<readRuns;i++){
+                for (Query query : config.getQueries()) {
+                    QueryResult result;
+                    try (Statement st = conn.createStatement()) {
+                        String sql = query.getQueriesByDb().get(detail.getDbType());
+                        start = System.nanoTime();
+                        for (int i = 0; i < readRuns; i++) {
                             try (ResultSet rs = st.executeQuery(sql)) {
                                 while (rs.next()) {
                                     // consuming rows
                                 }
                             }
                         }
-                        time = ((System.nanoTime() - start) / 1_000_000.0) /readRuns ;
+                        time = ((System.nanoTime() - start) / 1_000_000.0) / readRuns;
                         result = QueryResult.builder()
                                 .success(true)
                                 .queryName(query.getName())
                                 .category(query.getCategory())
-                                .executionTimeMs(Math.round(time * 100.0) / 100.0).build() ;
+                                .executionTimeMs(Math.round(time * 100.0) / 100.0).build();
 
-                        log.info("{} executed : {} ->>> in {} ms", detail.getName() ,query.getCategory(), time);
+                        log.info("{} executed : {} ->>> in {} ms", detail.getName(), query.getCategory(), time);
 
                     } catch (Exception e) {
                         log.error(e.getMessage());
@@ -453,21 +475,21 @@ public class BenchmarkService {
                                 .success(false)
                                 .queryName(query.getName())
                                 .category(query.getCategory())
-                                .errorMessage(e.getMessage()).build() ;
+                                .errorMessage(e.getMessage()).build();
                     }
-                    queryResults.add(result) ;
+                    queryResults.add(result);
 
                 }
 
-
                 // drop tables for resetting dbs
-                for(Table table : config.getTables()){
-                    handler.dropTable(conn,table.getTableName()) ;
+                for (Table table : config.getTables()) {
+                    TableStatistics statistics = handler.getTableStatistics(conn, returnDatabase(detail), table.getTableName());
+                    tableStatistics.add(statistics);
+                    // NOTE - comment the next line if u want the data to be written in db for testing
+                    handler.dropTable(conn, table.getTableName());
                 }
 
             }
-
-
 
             return CustomBenchmarkResult.builder()
                     .connectionName(detail.getName())
@@ -475,6 +497,7 @@ public class BenchmarkService {
                     .success(true)
                     .importMetrics(processImportMetric(csvImportResults))
                     .csvImportResults(csvImportResults)
+                    .tableStatistics(tableStatistics)
                     .queryResults(queryResults).build();
 
         } catch (Exception e) {
@@ -484,33 +507,32 @@ public class BenchmarkService {
                     .dbType(detail.getDbType())
                     .success(false)
                     .error(e.getMessage() != null ? e.getMessage() : e.toString())
-                    .build() ;
+                    .build();
         }
     }
 
-    private ImportMetrics processImportMetric(List<CsvImportResult> csvImportResults){
+    private ImportMetrics processImportMetric(List<CsvImportResult> csvImportResults) {
         int tablesImported = 0;
-        long totalRowsLoaded = 0 ;
-        double totalImportTimeMs = 0;;
-        double averageTableImportTimeMs = 0 ;
-        double csvImportRate = 0 ; // rows per sec
+        long totalRowsLoaded = 0;
+        double totalImportTimeMs = 0;
+        ;
+        double averageTableImportTimeMs = 0;
+        double csvImportRate = 0; // rows per sec
 
-
-        for(CsvImportResult result : csvImportResults){
-            tablesImported++ ;
-            totalRowsLoaded += result.getRowsLoaded() ;
-            totalImportTimeMs += result.getLoadTimeMs() ;
+        for (CsvImportResult result : csvImportResults) {
+            tablesImported++;
+            totalRowsLoaded += result.getRowsLoaded();
+            totalImportTimeMs += result.getLoadTimeMs();
         }
-        averageTableImportTimeMs = tablesImported == 0 ? 0 : totalImportTimeMs / (double) tablesImported ;
-        csvImportRate = totalImportTimeMs == 0 ? 0 : totalRowsLoaded / (totalImportTimeMs/1000.0) ;
-
+        averageTableImportTimeMs = tablesImported == 0 ? 0 : totalImportTimeMs / (double) tablesImported;
+        csvImportRate = totalImportTimeMs == 0 ? 0 : totalRowsLoaded / (totalImportTimeMs / 1000.0);
 
         return ImportMetrics.builder()
                 .tablesImported(tablesImported)
                 .totalRowsLoaded(totalRowsLoaded)
-                .totalImportTimmeMs(Math.round(totalImportTimeMs*100.0)/100.0)
-                .averageTableImportTimeMs(Math.round(averageTableImportTimeMs*100.0)/100.0)
-                .csvImportRate(Math.round(csvImportRate*100.0)/100.0).build() ;
+                .totalImportTimmeMs(Math.round(totalImportTimeMs * 100.0) / 100.0)
+                .averageTableImportTimeMs(Math.round(averageTableImportTimeMs * 100.0) / 100.0)
+                .csvImportRate(Math.round(csvImportRate * 100.0) / 100.0).build();
 
     }
 

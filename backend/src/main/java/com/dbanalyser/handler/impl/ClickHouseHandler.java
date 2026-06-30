@@ -9,6 +9,7 @@ import com.dbanalyser.customConfigModel.CsvImportResult;
 import com.dbanalyser.customConfigModel.Table;
 import com.dbanalyser.handler.DatabaseHandler;
 import com.dbanalyser.model.ConnectionDetail;
+import com.dbanalyser.model.TableStatistics;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,9 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
@@ -97,6 +96,58 @@ public class ClickHouseHandler implements DatabaseHandler {
         }catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public TableStatistics getTableStatistics(Connection conn, String database, String tableName) throws SQLException {
+        TableStatistics tableStatistics = new TableStatistics() ;
+
+        String countSql = "SELECT COUNT(*) FROM " + tableName ;
+        long rowCount = 0 ;
+
+        try(Statement st = conn.createStatement() ;
+            ResultSet rs = st.executeQuery(countSql)){
+            if(rs.next())
+                rowCount = rs.getLong(1) ;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+        tableStatistics.setTableName(tableName);
+        tableStatistics.setRowCount(rowCount);
+
+        String sizeSql = """
+                            SELECT
+                                sum(bytes_on_disk) AS total_size
+                            FROM system.parts
+                            WHERE database = ?
+                              AND table = ?
+                              AND active
+                            """;
+        try(PreparedStatement ps = conn.prepareStatement(sizeSql)){
+            ps.setString(1, database);
+            ps.setString(2, tableName);
+
+            try(ResultSet rs = ps.executeQuery()){
+                if(rs.next()){
+                    long totalSize = rs.getLong("total_size");
+
+                    tableStatistics.setDataSizeBytes(totalSize);
+                    tableStatistics.setTotalSizeBytes(totalSize);
+
+                    tableStatistics.setBytesPerRow(
+                            rowCount == 0 ? 0 :
+                                    (double) totalSize / rowCount);
+
+                    tableStatistics.setTotalSizeMb(
+                            Math.round((totalSize / 1024.0 / 1024.0) * 100.0) / 100.0);
+                }
+            }
+        }
+
+
+
+        return tableStatistics;
     }
 
 }

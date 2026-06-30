@@ -43,11 +43,21 @@ interface MetricResult {
   aggregateTimeMs: number;
 }
 
+interface TableStatistics {
+  tableName: string;
+  rowCount: number;
+  dataSizeBytes: number;
+  totalSizeBytes: number;
+  totalSizeMb: number;
+  bytesPerRow: number;
+}
+
 interface BenchmarkResult {
   connectionName: string;
   dbType: string;
   success: boolean;
   metrics?: MetricResult;
+  tableStatisticsList?: TableStatistics[];
   error?: string;
 }
 
@@ -83,6 +93,7 @@ interface CustomBenchmarkResult {
   importMetrics?: CustomImportMetrics;
   csvImportResults?: CustomCsvImportResult[];
   queryResults?: CustomQueryResult[];
+  tableStatistics?: TableStatistics[];
   error?: string | null;
 }
 
@@ -984,6 +995,90 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Table Storage & Statistics Comparison */}
+            <div className="glass-panel" style={{ padding: '1.25rem', marginTop: '2rem' }}>
+              <div className="section-title">
+                <Database size={18} style={{ color: 'var(--accent)' }} />
+                Table Storage & Row Statistics Comparison
+              </div>
+
+              {Array.from(new Set(benchmarkResults.flatMap(r => (r.tableStatisticsList || []).map(t => t.tableName)))).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  No table statistics available for the current benchmark run.
+                </div>
+              ) : (
+                <div className="results-table-container">
+                  <table className="results-table">
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>Table / Statistic</th>
+                        {benchmarkResults.map((r, idx) => (
+                          <th key={idx}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 700 }}>{r.connectionName}</span>
+                              <span className={`badge badge-${r.dbType}`} style={{ marginTop: '0.25rem' }}>{r.dbType}</span>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from(new Set(benchmarkResults.flatMap(r => (r.tableStatisticsList || []).map(t => t.tableName)))).map((tableName, tIdx) => (
+                        <React.Fragment key={`std-table-group-${tIdx}`}>
+                          {/* Table Header Row */}
+                          <tr style={{ background: 'rgba(255,255,255,0.02)', fontWeight: 'bold' }}>
+                            <td style={{ textAlign: 'left', color: 'var(--accent)' }} colSpan={1 + benchmarkResults.length}>
+                              {tableName}
+                            </td>
+                          </tr>
+                          {/* Row Count */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Row Count</td>
+                            {benchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatisticsList || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? stats.rowCount.toLocaleString() : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Data Size */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Data Size (Bytes)</td>
+                            {benchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatisticsList || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.dataSizeBytes.toLocaleString()} Bytes` : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Total Size (Bytes) */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Total Size (Bytes)</td>
+                            {benchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatisticsList || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.totalSizeBytes.toLocaleString()} Bytes` : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Total Size */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Total Size (MB)</td>
+                            {benchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatisticsList || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.totalSizeMb.toLocaleString()} MB` : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Bytes Per Row */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Avg Bytes / Row</td>
+                            {benchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatisticsList || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.bytesPerRow.toFixed(2)} Bytes` : '-'}</td>;
+                            })}
+                          </tr>
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -1220,6 +1315,90 @@ export default function App() {
                       <strong>{r.connectionName}:</strong> {r.error || 'Check table import or queries failure above.'}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Custom Table Storage & Statistics Comparison */}
+            <div className="glass-panel" style={{ padding: '1.25rem', marginTop: '2rem' }}>
+              <div className="section-title">
+                <Database size={18} style={{ color: 'var(--accent)' }} />
+                Table Storage & Row Statistics Comparison
+              </div>
+
+              {Array.from(new Set(customBenchmarkResults.flatMap(r => (r.tableStatistics || []).map(t => t.tableName)))).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                  No table statistics available for the current custom benchmark run.
+                </div>
+              ) : (
+                <div className="results-table-container">
+                  <table className="results-table">
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>Table / Statistic</th>
+                        {customBenchmarkResults.map((r, idx) => (
+                          <th key={idx}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 700 }}>{r.connectionName}</span>
+                              <span className={`badge badge-${r.dbType}`} style={{ marginTop: '0.25rem' }}>{r.dbType}</span>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Array.from(new Set(customBenchmarkResults.flatMap(r => (r.tableStatistics || []).map(t => t.tableName)))).map((tableName, tIdx) => (
+                        <React.Fragment key={`custom-table-group-${tIdx}`}>
+                          {/* Table Header Row */}
+                          <tr style={{ background: 'rgba(255,255,255,0.02)', fontWeight: 'bold' }}>
+                            <td style={{ textAlign: 'left', color: 'var(--accent)' }} colSpan={1 + customBenchmarkResults.length}>
+                              {tableName}
+                            </td>
+                          </tr>
+                          {/* Row Count */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Row Count</td>
+                            {customBenchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? stats.rowCount.toLocaleString() : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Data Size */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Data Size (Bytes)</td>
+                            {customBenchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.dataSizeBytes.toLocaleString()} Bytes` : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Total Size (Bytes) */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Total Size (Bytes)</td>
+                            {customBenchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.totalSizeBytes.toLocaleString()} Bytes` : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Total Size */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Total Size (MB)</td>
+                            {customBenchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.totalSizeMb.toLocaleString()} MB` : '-'}</td>;
+                            })}
+                          </tr>
+                          {/* Bytes Per Row */}
+                          <tr>
+                            <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Avg Bytes / Row</td>
+                            {customBenchmarkResults.map((r, idx) => {
+                              const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
+                              return <td key={idx}>{stats ? `${stats.bytesPerRow.toFixed(2)} Bytes` : '-'}</td>;
+                            })}
+                          </tr>
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

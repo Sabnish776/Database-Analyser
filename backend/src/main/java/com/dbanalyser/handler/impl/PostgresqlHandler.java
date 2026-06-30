@@ -3,14 +3,13 @@ package com.dbanalyser.handler.impl;
 import com.dbanalyser.customConfigModel.CsvImportResult;import com.dbanalyser.customConfigModel.Table;
 import com.dbanalyser.handler.DatabaseHandler;
 import com.dbanalyser.model.ConnectionDetail;
+import com.dbanalyser.model.TableStatistics;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.copy.CopyManager;import org.postgresql.core.BaseConnection;import org.springframework.stereotype.Component;
 
 import java.io.FileReader;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 
 @Slf4j
 @Component
@@ -71,4 +70,49 @@ public class PostgresqlHandler implements DatabaseHandler {
             throw new RuntimeException(e);
         }
     }
+
+    @Override
+    public TableStatistics getTableStatistics(Connection conn, String database, String tableName) throws SQLException {
+        TableStatistics tableStatistics = new TableStatistics() ;
+
+        String countSql = "SELECT COUNT(*) FROM " + tableName ;
+        long rowCount = 0 ;
+
+        try(Statement st = conn.createStatement() ;
+            ResultSet rs = st.executeQuery(countSql)){
+            if(rs.next())
+                rowCount = rs.getLong(1) ;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+        String sizeSql = """
+            SELECT
+                pg_table_size(?) AS data_size,
+                pg_total_relation_size(?) AS total_size
+            """;
+        try(PreparedStatement ps = conn.prepareStatement(sizeSql)){
+            ps.setString(1,tableName);
+            ps.setString(2,tableName);
+
+            try(ResultSet rs = ps.executeQuery()){
+                if(rs.next()){
+                    long dataSize = rs.getLong("data_size");
+                    long totalSizeBytes = rs.getLong("total_size");
+                    double bytesPerRow = rowCount > 0 ? (double) dataSize / rowCount : 0;
+                    tableStatistics = TableStatistics.builder()
+                            .tableName(tableName)
+                            .rowCount(rowCount)
+                            .dataSizeBytes(dataSize)
+                            .totalSizeBytes(totalSizeBytes)
+                            .totalSizeMb(Math.round(((double) totalSizeBytes /1024/1024 )*100.0) / 100.0)
+                            .bytesPerRow(bytesPerRow)
+                            .build() ;
+                }
+            }
+        }
+
+        return tableStatistics;
+    }
+
 }
