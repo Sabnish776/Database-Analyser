@@ -109,9 +109,7 @@ public class DuckDbHandler implements DatabaseHandler {
             try(ResultSet rs = ps.executeQuery()){
                 if(rs.next()){
                     long sizeBytes = rs.getLong("size_bytes") ;
-                    System.out.println(sizeBytes);
                     double sizeMb = rs.getDouble("size_mb") ;
-                    System.out.println(sizeMb);
                     tableStatistics.setDataSizeBytes(sizeBytes);
                     tableStatistics.setTotalSizeBytes(sizeBytes);
                     tableStatistics.setTotalSizeMb(sizeMb);
