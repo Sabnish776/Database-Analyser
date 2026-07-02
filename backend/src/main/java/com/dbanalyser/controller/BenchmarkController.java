@@ -7,6 +7,7 @@ import com.dbanalyser.service.BenchmarkService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.FileSystemUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -51,7 +52,10 @@ public class BenchmarkController {
 
     @PostMapping("/run-custom-benchmark")
     public ResponseEntity<CustomBenchmarkResponse> runCustomBenchmark(
-            @RequestParam MultipartFile configFile, @RequestParam List<MultipartFile> csvFiles , @RequestParam(defaultValue = "0") long thresholdRecords
+            @RequestParam MultipartFile configFile,
+            @RequestParam List<MultipartFile> csvFiles,
+            @RequestParam(defaultValue = "0") long thresholdRecords,
+            @RequestParam(defaultValue = "false") boolean compareWithSpark
             ) throws IOException {
         ObjectMapper mapper = new ObjectMapper() ;
         Config config = mapper.readValue(configFile.getInputStream(),Config.class) ;
@@ -73,7 +77,10 @@ public class BenchmarkController {
             System.out.println(e.getMessage());
             throw new RuntimeException(e);
         }
-        CustomBenchmarkResponse response = benchmarkService.runCustomBenchmark(config,csvPaths,thresholdRecords) ;
+        CustomBenchmarkResponse response = benchmarkService.runCustomBenchmark(config,csvPaths,thresholdRecords,compareWithSpark) ;
+
+        FileSystemUtils.deleteRecursively(tempDir);
+
         return ResponseEntity.ok().body(response) ;
     }
 }

@@ -9,10 +9,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.sql.*;
@@ -30,6 +30,9 @@ public class BenchmarkService {
 
     @Autowired
     private CsvImportService csvImportService;
+
+    @Value("${spark.engine.jar}")
+    private String sparkEngineJar;
 
     @PostConstruct
     public void init() {
@@ -367,7 +370,7 @@ public class BenchmarkService {
         return dbUrl.substring(dbUrl.lastIndexOf("/") + 1);
     }
 
-    public CustomBenchmarkResponse runCustomBenchmark(Config config, Map<String, Path> csvPaths, long thresholdRecords)
+    public CustomBenchmarkResponse runCustomBenchmark(Config config, Map<String, Path> csvPaths, long thresholdRecords, boolean compareWithSpark)
             throws IOException {
 
         List<CustomBenchmarkResult> results = new ArrayList<>();
@@ -386,10 +389,106 @@ public class BenchmarkService {
                         .build());
             }
         }
+
+        if (compareWithSpark) {
+            try {
+                CustomBenchmarkResult sparkResult = runSparkBenchmark(config, csvPaths, thresholdRecords);
+                results.add(sparkResult);
+            } catch (Exception e) {
+                log.error("Unexpected error running Spark benchmark", e);
+                results.add(CustomBenchmarkResult.builder()
+                        .connectionName("SparkSQL")
+                        .dbType("spark")
+                        .success(false)
+                        .error(e.getMessage() != null ? e.getMessage() : e.toString())
+                        .build());
+            }
+        }
+
         return CustomBenchmarkResponse.builder()
                 .benchmarkResults(results)
                 .build();
+    }
 
+    private CustomBenchmarkResult runSparkBenchmark(Config config, Map<String, Path> csvPaths, long thresholdRecords) {
+        if (csvPaths == null || csvPaths.isEmpty()) {
+            return CustomBenchmarkResult.builder()
+                    .connectionName("SparkSQL")
+                    .dbType("spark")
+                    .success(false)
+                    .error("No CSV files uploaded for Spark benchmarking.")
+                    .build();
+        }
+
+        // Get the temp directory
+        Path tempDir = csvPaths.values().iterator().next().getParent();
+        Path configJsonPath = tempDir.resolve("spark_config.json");
+        Path sparkResultJsonPath = tempDir.resolve("spark_result.json");
+
+        try {
+            // Write config to temp file
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.writeValue(configJsonPath.toFile(), config);
+
+            // Execute Spark-Engine via mvn exec:java
+//            List<String> command = List.of(
+//                    "mvn","clean","compile", "exec:java",
+//                    "-Dexec.mainClass=com.app.Main",
+//                    "-Dexec.args=" + configJsonPath.toAbsolutePath().toString() + " " +
+//                            tempDir.toAbsolutePath().toString() + " " +
+//                            sparkResultJsonPath.toAbsolutePath().toString() + " " +
+//                            thresholdRecords
+//            );
+
+            List<String> command = List.of(
+                    "java",
+                    "-jar",
+                    sparkEngineJar,
+                    configJsonPath.toString(),
+                    tempDir.toString(),
+                    sparkResultJsonPath.toString(),
+                    String.valueOf(thresholdRecords)
+            );
+
+            log.info("Executing Spark SQL Benchmark command: {}", String.join(" ", command));
+
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(true);
+//            pb.directory(new File("../Spark-Engine"));
+
+            Process process = pb.start();
+
+            // Consume stdout to avoid blocking process buffer
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    log.info("[Spark-Engine] " + line);
+                }
+            }
+
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new RuntimeException("Spark Engine process exited with code " + exitCode);
+            }
+
+            // Read the output JSON result
+            File sparkResultFile = sparkResultJsonPath.toFile();
+            if (!sparkResultFile.exists()) {
+                throw new RuntimeException("Spark Engine completed but spark_result.json was not found.");
+            }
+
+            CustomBenchmarkResult sparkResult = mapper.readValue(sparkResultFile, CustomBenchmarkResult.class);
+            return sparkResult;
+
+        } catch (Exception e) {
+            log.error("Spark Benchmark execution failed: ", e);
+            return CustomBenchmarkResult.builder()
+                    .connectionName("SparkSQL")
+                    .dbType("spark")
+                    .success(false)
+                    .error(e.getMessage() != null ? e.getMessage() : e.toString())
+                    .build();
+        }
     }
 
     public CustomBenchmarkResult runSingleCustomBenchmark(ConnectionDetail detail, Config config,

@@ -166,6 +166,7 @@ export default function App() {
   const [customConfigText, setCustomConfigText] = useState<string>('');
   const [enableThresholdMode, setEnableThresholdMode] = useState<boolean>(false);
   const [thresholdRecords, setThresholdRecords] = useState<number>(30000);
+  const [compareWithSpark, setCompareWithSpark] = useState<boolean>(false);
 
   // Modal visibility states
   const [showDefaultQueriesModal, setShowDefaultQueriesModal] = useState<boolean>(false);
@@ -342,6 +343,7 @@ export default function App() {
         formData.append('csvFiles', file);
       });
       formData.append('thresholdRecords', String(enableThresholdMode ? thresholdRecords : 0));
+      formData.append('compareWithSpark', String(compareWithSpark));
 
       const res = await fetch(`${API_BASE}/run-custom-benchmark`, {
         method: 'POST',
@@ -385,7 +387,13 @@ export default function App() {
   const readLeader = getLeader('readTimeMs', true);
 
   const getCustomLeader = (metric: 'totalImportTimmeMs' | 'csvImportRate' | 'averageTableImportTimeMs' | 'avgQueryTime', lowerIsBetter = true) => {
-    const valid = customBenchmarkResults.filter(r => r.success && r.importMetrics);
+    const valid = customBenchmarkResults.filter(r => {
+      if (!r.success) return false;
+      if (metric === 'avgQueryTime') {
+        return r.queryResults && r.queryResults.length > 0;
+      }
+      return !!r.importMetrics;
+    });
     if (valid.length === 0) return null;
 
     return valid.reduce((best, curr) => {
@@ -778,6 +786,43 @@ export default function App() {
                       </span>
                     </div>
                   )}
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label htmlFor="compare-with-spark-input" className="toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', userSelect: 'none' }}>
+                      <div className={`toggle-switch ${compareWithSpark ? 'active' : ''}`} style={{
+                        width: '40px',
+                        height: '20px',
+                        background: compareWithSpark ? 'var(--primary)' : '#334155',
+                        borderRadius: '10px',
+                        position: 'relative',
+                        transition: 'background 0.3s'
+                      }}>
+                        <div className="toggle-knob" style={{
+                          width: '16px',
+                          height: '16px',
+                          background: 'white',
+                          borderRadius: '50%',
+                          position: 'absolute',
+                          top: '2px',
+                          left: compareWithSpark ? '22px' : '2px',
+                          transition: 'left 0.3s'
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Compare with Spark SQL
+                      </span>
+                    </label>
+                    <input
+                      id="compare-with-spark-input"
+                      type="checkbox"
+                      checked={compareWithSpark}
+                      onChange={(e) => setCompareWithSpark(e.target.checked)}
+                      style={{ display: 'none' }}
+                    />
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                      Check this to execute queries on Apache Spark SQL engine and compare performance metrics.
+                    </p>
+                  </div>
 
                   <div className="run-bar" style={{ margin: 0, padding: '0.75rem 1rem', border: 'none', background: 'rgba(255,255,255,0.02)', flexDirection: 'column', gap: '1rem', alignItems: 'stretch' }}>
                     <div className="run-stats-info" style={{ justifyContent: 'space-between', fontSize: '0.8rem' }}>
@@ -1214,21 +1259,21 @@ export default function App() {
                       <td style={{ textAlign: 'left' }}>Total Rows Loaded</td>
                       <td>Import</td>
                       {customBenchmarkResults.map((r, idx) => (
-                        <td key={idx}>{r.success && r.importMetrics ? r.importMetrics.totalRowsLoaded.toLocaleString() : '-'}</td>
+                        <td key={idx}>{r.dbType === 'spark' ? 'N/A' : (r.success && r.importMetrics ? r.importMetrics.totalRowsLoaded.toLocaleString() : '-')}</td>
                       ))}
                     </tr>
                     <tr>
                       <td style={{ textAlign: 'left' }}>Total Import Time (ms)</td>
                       <td>Import</td>
                       {customBenchmarkResults.map((r, idx) => (
-                        <td key={idx}>{r.success && r.importMetrics ? `${r.importMetrics.totalImportTimmeMs} ms` : '-'}</td>
+                        <td key={idx}>{r.dbType === 'spark' ? 'N/A' : (r.success && r.importMetrics ? `${r.importMetrics.totalImportTimmeMs} ms` : '-')}</td>
                       ))}
                     </tr>
                     <tr>
                       <td style={{ textAlign: 'left' }}>Average Table Import (ms)</td>
                       <td>Import</td>
                       {customBenchmarkResults.map((r, idx) => (
-                        <td key={idx}>{r.success && r.importMetrics ? `${r.importMetrics.averageTableImportTimeMs} ms` : '-'}</td>
+                        <td key={idx}>{r.dbType === 'spark' ? 'N/A' : (r.success && r.importMetrics ? `${r.importMetrics.averageTableImportTimeMs} ms` : '-')}</td>
                       ))}
                     </tr>
                     <tr>
@@ -1236,7 +1281,7 @@ export default function App() {
                       <td>Import</td>
                       {customBenchmarkResults.map((r, idx) => (
                         <td key={idx} className="text-success" style={{ fontWeight: 700 }}>
-                          {r.success && r.importMetrics ? `${r.importMetrics.csvImportRate.toLocaleString()} rows/s` : '-'}
+                          {r.dbType === 'spark' ? 'N/A' : (r.success && r.importMetrics ? `${r.importMetrics.csvImportRate.toLocaleString()} rows/s` : '-')}
                         </td>
                       ))}
                     </tr>
@@ -1254,6 +1299,7 @@ export default function App() {
                             <td style={{ textAlign: 'left' }}>{tableName}</td>
                             <td>Table Load</td>
                             {customBenchmarkResults.map((r, idx) => {
+                              if (r.dbType === 'spark') return <td key={idx}>N/A</td>;
                               const tRes = (r.csvImportResults || []).find(t => t.tableName === tableName);
                               if (!tRes) return <td key={idx}>-</td>;
                               return (
@@ -1359,6 +1405,7 @@ export default function App() {
                           <tr>
                             <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Row Count</td>
                             {customBenchmarkResults.map((r, idx) => {
+                              if (r.dbType === 'spark') return <td key={idx}>N/A</td>;
                               const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
                               return <td key={idx}>{stats ? stats.rowCount.toLocaleString() : '-'}</td>;
                             })}
@@ -1367,6 +1414,7 @@ export default function App() {
                           <tr>
                             <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Data Size (Bytes)</td>
                             {customBenchmarkResults.map((r, idx) => {
+                              if (r.dbType === 'spark') return <td key={idx}>N/A</td>;
                               const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
                               return <td key={idx}>{stats ? `${stats.dataSizeBytes.toLocaleString()} Bytes` : '-'}</td>;
                             })}
@@ -1375,6 +1423,7 @@ export default function App() {
                           <tr>
                             <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Total Size (Bytes)</td>
                             {customBenchmarkResults.map((r, idx) => {
+                              if (r.dbType === 'spark') return <td key={idx}>N/A</td>;
                               const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
                               return <td key={idx}>{stats ? `${stats.totalSizeBytes.toLocaleString()} Bytes` : '-'}</td>;
                             })}
@@ -1383,6 +1432,7 @@ export default function App() {
                           <tr>
                             <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Total Size (MB)</td>
                             {customBenchmarkResults.map((r, idx) => {
+                              if (r.dbType === 'spark') return <td key={idx}>N/A</td>;
                               const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
                               return <td key={idx}>{stats ? `${stats.totalSizeMb.toLocaleString()} MB` : '-'}</td>;
                             })}
@@ -1391,6 +1441,7 @@ export default function App() {
                           <tr>
                             <td style={{ textAlign: 'left', paddingLeft: '1.5rem', color: 'var(--text-secondary)' }}>Avg Bytes / Row</td>
                             {customBenchmarkResults.map((r, idx) => {
+                              if (r.dbType === 'spark') return <td key={idx}>N/A</td>;
                               const stats = (r.tableStatistics || []).find(t => t.tableName === tableName);
                               return <td key={idx}>{stats ? `${stats.bytesPerRow.toFixed(2)} Bytes` : '-'}</td>;
                             })}

@@ -25,6 +25,15 @@ backend/*.iml
 backend/.env.properties
 backend/.env
 
+# Spark-Engine - Maven
+Spark-Engine/target/
+Spark-Engine/*.jar
+Spark-Engine/.classpath
+Spark-Engine/.project
+Spark-Engine/.settings/
+Spark-Engine/*.iml
+Spark-Engine/.factorypath
+
 out
 
 # Editor directories and files

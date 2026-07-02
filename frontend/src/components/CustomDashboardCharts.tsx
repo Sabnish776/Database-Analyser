@@ -55,18 +55,21 @@ const DB_COLORS: { [key: string]: string } = {
   mariadb: '#06b6d4', // Cyan
   clickhouse: '#10b981', // Green
   oraclesql: '#f97316', // Orange
+  spark: '#e25a24', // Spark Orange
   default: '#64748b', // Slate
 };
 
 export const CustomDashboardCharts: React.FC<CustomDashboardChartsProps> = ({ results }) => {
-  const successfulResults = results.filter((r) => r.success && r.importMetrics);
+  const successfulResults = results.filter((r) => r.success && (r.importMetrics || r.dbType === 'spark'));
 
   if (successfulResults.length === 0) {
     return null;
   }
 
+  const importResults = successfulResults.filter((r) => r.dbType !== 'spark');
+
   // Chart 1 & 2 Data: Overall Import rate and Total import time
-  const overallData = successfulResults.map((r) => ({
+  const overallData = importResults.map((r) => ({
     name: r.connectionName,
     dbType: r.dbType,
     'Import Rate (rows/s)': r.importMetrics?.csvImportRate || 0,
@@ -78,13 +81,13 @@ export const CustomDashboardCharts: React.FC<CustomDashboardChartsProps> = ({ re
   // Gather all unique table names
   const allTables = Array.from(
     new Set(
-      successfulResults.flatMap((r) => (r.csvImportResults || []).map((t) => t.tableName))
+      importResults.flatMap((r) => (r.csvImportResults || []).map((t) => t.tableName))
     )
   );
 
   const tableData = allTables.map((tableName) => {
     const row: any = { name: tableName };
-    successfulResults.forEach((r) => {
+    importResults.forEach((r) => {
       const tableRes = (r.csvImportResults || []).find((t) => t.tableName === tableName);
       row[r.connectionName] = tableRes && tableRes.success ? tableRes.loadTimeMs : 0;
     });

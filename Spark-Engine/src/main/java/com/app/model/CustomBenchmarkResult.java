@@ -1,6 +1,5 @@
-package com.dbanalyser.customConfigModel;
+package com.app.model;
 
-import com.dbanalyser.model.TableStatistics;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,15 +9,15 @@ import java.util.List;
 
 @Data
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 public class CustomBenchmarkResult {
     private String connectionName;
     private String dbType;
     private boolean success;
-    private ImportMetrics importMetrics ;
-    List<CsvImportResult> csvImportResults ;
-    List<TableStatistics> tableStatistics ;
-    List<QueryResult> queryResults ;
-    private String error ;
+    private ImportMetrics importMetrics;
+    private List<CsvImportResult> csvImportResults;
+    private List<TableStatistics> tableStatistics;
+    private List<QueryResult> queryResults;
+    private String error;
 }

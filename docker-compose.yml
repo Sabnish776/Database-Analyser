@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: db-analyer-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPARK_ENGINE_JAR: /app/spark-engine.jar
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: db-analyser-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend

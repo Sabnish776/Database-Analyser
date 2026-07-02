@@ -1,4 +1,4 @@
-package com.dbanalyser.customConfigModel;
+package com.app.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Builder
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
 public class QueryResult {
     private String queryName;
     private String category;
